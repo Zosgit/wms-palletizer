@@ -1,0 +1,48 @@
+Lista opakowań
+    - pokazać szcz:
+        - nagłowek
+        - zablokuj, usuń - usuwam tylko jak puste opakowanie !
+    - pokazać zawartość opakowania
+    - historia przesunięć ( jak to chodziło po miejscach)
+
+Lista produktów
+    - pokazać szcz
+    - pokazać ile jest w sumie na zapasie w opakowaniach
+    - usuń - tylko jak nie ma na zapasie !
+    - pokazać na jakich jest opakowaniach/ miejscach
+    - jak click na opakowanie to przechodze jw na szcz opakowania
+
+Lista miejsc:
+    - pokazać szcz
+    - jak ze statusem ?
+    - usuwam tylko jak nie ma opakowania
+    - pokazać historię np ostatnich 50 wpisów z tym miejscem
+
+
+Raporty:
+    - ile jest miejsc (podział / typ/ status)
+    - lista opakowań (podział / typ/ status)
+    - produkt ilość / właściciel / status
+
+Dashboard / Raporty
+
+
+Dostawa
+Jak przsywam wszystkie opakowania to dopiero zmiana stanu mierjsca
+Przed zmianą sprawdzam czy są jeszcze opakownia na miejscu !!!
+
+Czy działa usuwanie ?
+
+- jak przesunę produkt z opakowania i już nic nie ma to usunąc opakowanie + puste miejsce !
+
++ jak dodaje do opakowania produkt to spr wszystkie cechi i jak take same to dodaje do pozycji a nie za każdym razem nowa poz
+
+Order-pick
+
+1. wybieram opakowanie i zmiana na nim (stan, miejsce)
+2. pokazuje nagłówek (zamówienie, opakowanie)
+    - lista (produkt, ilość
+        poniżej lista miejsc gdzie jest produkt
+
+    - potem z przesunięć produktów
+    - skan opakowania od, ilość , opakownie_do już mam...

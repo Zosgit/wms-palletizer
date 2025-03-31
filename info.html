@@ -1,0 +1,185 @@
+php artisan make:model Todo -mcr
+-m, --migration Create a new migration file for the model.
+-c, --controller Create a new controller for the model.
+-r, --resource Indicates if the generated controller should be a resource controller
+
+
+-------------------------------------------------------------------------------------------
+php artisan make:model Todo -a
+-a, --all Generate a migration, factory, and resource controller for the model
+
+
+-------------------------------------------------------------------------------------------
+php artisan make:model Author -cfmsr
+
+-c, --controller Create a new controller for the model
+
+-f, --factory Create a new factory for the model
+
+-m, --migration Create a new migration file for the model
+
+-s, --seed Create a new seeder file for the model
+
+-r, --resource Indicates if the generated controller should be a resource controller
+
+use Illuminate\Support\Facades\DB;
+
+findOrFail
+
+
+    <div class="input-field col s12">
+        <input id="amount" name="amount" type="number" step="0.01" data-parsley-required="true" data-parsley-trigger="change"  value="{{ old('amount') }}" placeholder="Payment Amount">
+        <label for="amount" class="label-validation">Amount</label>
+        <span class="helper-text"></span>
+    </div>
+    <script type="text/javascript">
+        "use strict";
+        $(function() {
+            Unicorn.initSelectize('#mode', true);
+            Unicorn.initDatepicker('#receiveddate', '1950', new Date("{{ Carbon\Carbon::now()->addYear()->toDateTimeString() }}").getFullYear(), new Date("{{ Carbon\Carbon::now()->toDateTimeString() }}"));
+            Unicorn.initParsleyValidation('#create-payment');
+
+            $('#amount').on('change', function(){
+                $(this).val(parseFloat($(this).val()).toFixed(2));
+            });
+        });
+    </script>
+
+
+ <!--
+@if ($su <> end($storeunits))
+{{ '<pagebreak></pagebreak>ss' }}
+@endif
+
+-->
+
+
+Screen size	Class name
+Extra small	text-xs
+Small	text-sm
+Medium	text-md
+Large	text-lg
+Extra large	text-xl
+
+kolory text:
+https://getbootstrap.com/docs/4.0/utilities/colors/
+
+
+ikony:
+https://coreui.io/icons/all/
+
+
+
+paginacja...
+{{ $products->links() }}
+
+<p>
+    Displaying {{$products->count()}} of {{ $products->total() }} product(s).
+</p>
+
+
+public function indexFiltering(Request $request)
+{
+    $filter = $request->query('filter');
+
+    if (!empty($filter)) {
+        $products = Product::sortable()
+            ->where('products.name', 'like', '%'.$filter.'%')
+            ->paginate(5);
+    } else {
+        $products = Product::sortable()
+            ->paginate(5);
+    }
+
+    return view('products.index-filtering')->with('products', $products)->with('filter', $filter);
+}
+
+<form class="form-inline" method="GET">
+    <div class="form-group mb-2">
+      <label for="filter" class="col-sm-2 col-form-label">Filter</label>
+      <input type="text" class="form-control" id="filter" name="filter" placeholder="Product name..." value="{{$filter}}">
+    </div>
+    <button type="submit" class="btn btn-default mb-2">Filter</button>
+  </form>
+
+  /*
+        $dog = DB::table('v_store_units')->get();
+        dd($dog);
+*/
+
+@push('scripts')
+<script>
+    $('.number').on('change', function(){
+        $(this).val(parseFloat($(this).val()).toFixed(2));
+    });
+</script>
+@endpush
+
+
+::orderby('updated_at','desc')->paginate();
+
+
+<div>
+    {{$storeunittypes->links() }}
+</div>
+<p>
+    Ilość: {{$storeunittypes->count()}} z {{ $storeunittypes->total() }} rekordów.
+</p>
+
+
+
+<a href="{{ url()->previous() }}"
+
+date('Y-m-d'),
+
+if (StoreUnit::where('ean', $ean)->doesntExist())
+
+
+delete from store_units;
+delete from store_logs;
+delete from stocks;
+delete from shipment_details;
+delete from public.shipments;
+update locations set status_id = 202;
+delete from order_details;
+delete from orders;
+delete from public.order_pick;
+
+use Illuminate\Database\Eloquent\ModelNotFoundException;
+
+try {
+    $locationOld = Location::findorfail($storeunit->location_id);
+} catch (ModelNotFoundException $exception) {
+    return response("User with id {$request->id} not found", Response::HTTP_NOT_FOUND);
+}
+
+
+info o zapytaniach:
+https://cosme.dev/post/laravel-orwhere-how-to-use-and-group-queries
+
+
+
+/*
+        $storeunits = DB::table('v_ship_locations')->where(function ($query) use ($id){
+                            $query->orwhere('status_id', 101)->orwhere('ship_id',$id);
+                            })->paginate(200);
+
+ //       $storeunits = DB::table('v_ship_locations')->where('status_id', 101)->orwhere(function ($query) use ($id){
+ /*                           $query->where('status_id', 102)->where('ship_id',$id);
+        })->paginate(200);
+*/
+
+
+       // $storeunits = DB::table('v_ship_locations')->where('ship_id',$id)->paginate(200);
+
+
+       // sprawdzam czy są inne opakowania w danym miejscu
+       public function getAnotherStoreUnit($storeunit)
+       {
+           $allCount=DB::select('select getAnotherStoreUnit('.$storeunit.') as su_count');
+           dd($allCount);
+           return $allCount[0]->su_count;
+       }
+
+
+       Model::whereNotNull('sent_at');

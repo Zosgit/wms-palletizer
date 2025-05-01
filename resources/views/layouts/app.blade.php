@@ -39,7 +39,7 @@
                 </svg>
             </a>
             <ul class="header-nav d-none d-md-flex">
-                <li class="nav-item"><a class="nav-link" href="{{ route('home') }}">Dashboard</a></li>
+                <li class="nav-item"><a class="nav-link" href="{{ route('home') }}"> </a></li>
             </ul>
             <ul class="header-nav ms-auto">
 
@@ -87,7 +87,7 @@
         </div>
     </div>
     <footer class="footer">
-        <div>WMS System v1.0 Zofia Latawiec
+        <div>WMS System v1.2
         </div>
         <div class="ms-auto">Środowisko: v{{ Illuminate\Foundation\Application::VERSION }} (PHP v{{ PHP_VERSION }})</div>
     </footer>

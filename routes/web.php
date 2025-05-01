@@ -39,6 +39,7 @@ Route::middleware('auth')->group(function () {
     Route::resource('/productmetrics', App\Http\Controllers\ProductMetricController::class);
     Route::resource('/storeunittypes', App\Http\Controllers\StoreUnitTypeController::class);
     Route::resource('/firms', App\Http\Controllers\FirmController::class);
+    Route::resource('/position', App\Http\Controllers\PositionController::class);
     Route::resource('/storeunits', App\Http\Controllers\StoreUnitController::class);
     Route::get('/storeunits/{id}/generate-pdf',[App\Http\Controllers\StoreUnitController::class,'generatePDF'])->name('storeunit.generate-pdf');
     Route::get('/storeunits/{print}/generate-multi-pdf',[App\Http\Controllers\StoreUnitController::class,'generateMultiPDF'])->name('storeunit.generate-multi-pdf');

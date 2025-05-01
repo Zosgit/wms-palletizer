@@ -4,7 +4,7 @@
             <svg class="nav-icon">
                 <use xlink:href="{{ asset('icons/coreui.svg#cil-view-quilt') }}"></use>
             </svg>
-            {{ __('Dashboard') }}
+            {{ __('Strona główna') }}
         </a>
     </li>
 
@@ -138,6 +138,15 @@
     </li>
 
     <li class="nav-item">
+        <a class="nav-link" href="{{ route('position.index') }}">
+            <svg class="nav-icon">
+                <use xlink:href="{{ asset('icons/coreui.svg#cil-storage') }}"></use>
+            </svg>
+            Pozycjonowanie
+        </a>
+    </li>
+
+    <li class="nav-item">
         <a class="nav-link" href="{{ route('firms.index') }}">
             <svg class="nav-icon">
                 <use xlink:href="{{ asset('icons/coreui.svg#cil-group') }}"></use>
@@ -176,7 +185,7 @@
             <svg class="nav-icon">
                 <use xlink:href="{{ asset('icons/coreui.svg#cil-address-book') }}"></use>
             </svg>
-            {{ __('About us') }}
+            {{ __('O nas') }}
         </a>
     </li>
 </ul>

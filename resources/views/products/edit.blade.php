@@ -16,52 +16,65 @@
                         <div class="card-body"><canvas id="myBarChart" width="100%" height="10"></canvas>
                             <div class="row p-1">
                                 <div class="col-md-6">
-                                    <div class="form-group">
+                                    <div class="form-group mb-3">
                                         <label for="code">Nazwa</label>
                                         <input type="text" name="code"
-                                            value="{{$product->code}}" class="form-control @error('code') is-invalid @enderror"
+                                            value="{{ $product->code }}" class="form-control @error('code') is-invalid @enderror"
                                             id="code" required readonly>
-
-                                            @error('code')
-                                                <span class="invalid-feedback" role="alert">
-                                                    <strong>{{ $message }}</strong>
-                                                </span>
-                                            @enderror
+                                        @error('code')
+                                            <span class="invalid-feedback" role="alert">
+                                                <strong>{{ $message }}</strong>
+                                            </span>
+                                        @enderror
                                     </div>
-                                    <div class="col-md-12 pt-2">
-                                        <div class="form-group">
-                                            <label for="producttype_id">Typ produktu</label>
-                                                <select name="producttype_id" class="form-select form-control @error('producttype_id') is-invalid @enderror" id="producttype_id" required>
-                                                <option value="">Wybierz</option>
-                                                @foreach ($product_types as $product_type)
-                                                    <option value="{{ $product_type->id }}" @if (isset($product))
-                                                        {{ $product->producttype_id == $product_type->id ? 'selected' : old($product->producttype_id) }}
-                                                @endif>
-                                                {{ $product_type->code }}</option>
-                                                @endforeach
-                                                @error('producttype_id')
-                                                    <span class="invalid-feedback" role="alert">
-                                                        <strong>{{ $message }}</strong>
-                                                    </span>
-                                                @enderror
-                                            </select>
-                                        </div>
+
+                                    <div class="form-group mb-3">
+                                        <label for="producttype_id">Typ produktu</label>
+                                        <select name="producttype_id" class="form-select form-control @error('producttype_id') is-invalid @enderror" id="producttype_id" required>
+                                            <option value="">Wybierz</option>
+                                            @foreach ($product_types as $product_type)
+                                                <option value="{{ $product_type->id }}"
+                                                    {{ $product->producttype_id == $product_type->id ? 'selected' : '' }}>
+                                                    {{ $product_type->code }}
+                                                </option>
+                                            @endforeach
+                                        </select>
+                                        @error('producttype_id')
+                                            <span class="invalid-feedback" role="alert">
+                                                <strong>{{ $message }}</strong>
+                                            </span>
+                                        @enderror
+                                    </div>
+
+                                    <div class="form-group mb-3">
+                                        <label for="material_type">Rodzaj materiału</label>
+                                        <select name="material_type" class="form-select form-control @error('material_type') is-invalid @enderror" id="material_type" required>
+                                            <option value="">Wybierz</option>
+                                            <option value="kruchy" {{ $product->material_type == 'kruchy' ? 'selected' : '' }}>Kruchy</option>
+                                            <option value="miekki" {{ $product->material_type == 'miekki' ? 'selected' : '' }}>Miękki</option>
+                                            <option value="twardy" {{ $product->material_type == 'twardy' ? 'selected' : '' }}>Twardy</option>
+                                        </select>
+                                        @error('material_type')
+                                            <span class="invalid-feedback" role="alert"><strong>{{ $message }}</strong></span>
+                                        @enderror
                                     </div>
                                 </div>
 
                                 <div class="col-md-6">
-                                    <div class="form-group">
+                                    <div class="form-group h-100">
                                         <label for="longdesc">Opis</label>
-                                        <textarea type="text" name="longdesc" class="form-control @error('longdesc') is-invalid @enderror" id="longdesc" rows="4" required autofocus>{{$product->longdesc}}</textarea>
-
-                                            @error('longdesc')
-                                                <span class="invalid-feedback" role="alert">
-                                                    <strong>{{ $message }}</strong>
-                                                </span>
-                                            @enderror
+                                        <textarea type="text" name="longdesc"
+                                            class="form-control @error('longdesc') is-invalid @enderror"
+                                            id="longdesc" style="height: 200px;" required>{{ $product->longdesc }}</textarea>
+                                        @error('longdesc')
+                                            <span class="invalid-feedback" role="alert">
+                                                <strong>{{ $message }}</strong>
+                                            </span>
+                                        @enderror
                                     </div>
                                 </div>
                             </div>
+
 
                             <div class="row p-2 pt-3">
                                 <div class="col-md-4">

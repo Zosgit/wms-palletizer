@@ -45,6 +45,7 @@ class ProductController extends Controller
             'code' => 'required|unique:products|max:50',
             'longdesc' => 'required|string|max:190',
             'producttype_id' => 'required',
+            'material_type' => 'required',
             'size_x' => 'required|Decimal:2',
             'size_y' => 'required|Decimal:2',
             'size_z' => 'required|Decimal:2',
@@ -76,6 +77,7 @@ class ProductController extends Controller
         $validatedAttributes = $request->validate ([
             'longdesc' => 'required|string|max:190',
             'producttype_id' => 'required',
+            'material_type' => 'required',
             'size_x' => 'required|Decimal:2',
             'size_y' => 'required|Decimal:2',
             'size_z' => 'required|Decimal:2',

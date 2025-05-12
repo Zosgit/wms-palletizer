@@ -129,5 +129,6 @@ Route::middleware('auth')->group(function () {
     //pozycjonowanie
     Route::get('/position/create', [App\Http\Controllers\PositionController::class, 'create'])->name('position.create');
     Route::get('/position/frompick/{id}', [App\Http\Controllers\PositionController::class, 'createFromPick'])->name('position.frompick');
+    Route::get('/position', [App\Http\Controllers\PositionController::class, 'index'])->name('position.index');
 
 });

@@ -10,6 +10,8 @@ use App\Models\PickOrder;
 use App\Models\StoreUnit;
 use App\Models\StoreLogs;
 use App\Models\Stock;
+use App\Models\Position;
+use App\Models\Product;
 use Illuminate\Support\Facades\DB;
 
 class PickController extends Controller
@@ -323,6 +325,21 @@ class PickController extends Controller
 
         Location::where('id',$order->location_id)->update(['status_id' => 202]);
         OrderDetail::where('order_id',$id)->update(['status_id' => 504]);
+
+        // Stwórz nowy wpis pozycjonowania
+        $position = Position::create([
+            'name' => 'Pozycjonowanie do zamówienia #' . $order->order_nr,
+            'order_id' => $order->id,
+        ]);
+
+        // Pobierz produkty z kompletacji
+        $productIds = PickOrder::where('order_id', $order->id)
+            ->whereNotNull('product_id')
+            ->pluck('product_id')
+            ->unique();
+
+        // Przypisz produkty do pozycjonowania
+        $position->products()->sync($productIds);
 
         return redirect()->route('pick.view',['id'=> $id]);
 

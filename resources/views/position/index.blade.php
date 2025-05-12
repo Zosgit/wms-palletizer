@@ -10,6 +10,9 @@
         </div>
 
         <div class="card-body">
+@if($position->picklist_id)
+    <span class="badge bg-info">Z kompletacji #{{ $position->picklist_id }}</span>
+@endif
 
         </div>
 

@@ -9,7 +9,7 @@
                     <i class="fas fa-cube"></i>
                     &nbsp; <b>Dodaj nowe pozycjonowanie paczki</b>
                 </div>
-              @include('firms.fields')
+              @include('position.fields')
             </div>
         </div>
     </div>

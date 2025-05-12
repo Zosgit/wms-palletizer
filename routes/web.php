@@ -125,4 +125,9 @@ Route::middleware('auth')->group(function () {
     // raporty
     Route::get('/report-stock',[App\Http\Controllers\ReportController::class,'reportstock'])->name('report.stock');
     Route::get('/report-product/{id}',[App\Http\Controllers\ReportController::class,'reportproduct'])->name('report.product');
+
+    //pozycjonowanie
+    Route::get('/position/create', [App\Http\Controllers\PositionController::class, 'create'])->name('position.create');
+    Route::get('/position/frompick/{id}', [App\Http\Controllers\PositionController::class, 'createFromPick'])->name('position.frompick');
+
 });

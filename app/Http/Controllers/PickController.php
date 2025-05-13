@@ -157,7 +157,8 @@ class PickController extends Controller
             $storeunit = StoreUnit::findorfail($su->store_unit_id);
         }
 
-        return view('pick.picklist', compact('orderdetails','id','pickings','storeunit'));
+        //return view('pick.picklist', compact('orderdetails','id','pickings','storeunit'));
+        return view('pick.picklist', compact('orderdetails','id','pickings'));
 
     }
 

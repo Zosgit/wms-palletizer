@@ -42,7 +42,8 @@
                                 <td>{{ $order->external_nr}}</td>
                                 <td>{{ $order->location}}</td>
                                 <td>{{ $order->updated_at}}</td>
-                                <td><a href="{{ route('pick.storeunit',['id'=>$order->id])}}">
+                               <td><a href="{{ route('pick.picklist', ['id' => $order->id]) }}">
+
                                     <svg class="icon icon-lg">
                                         <use xlink:href="{{ asset('icons/coreui.svg#cil-arrow-right') }}"></use>
                                     </svg>

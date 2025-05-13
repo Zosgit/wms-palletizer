@@ -30,7 +30,7 @@
 <div class="container">
     <div class="card mb-4">
         <div class="card-header d-flex align-items-center">
-            <div>Lista nr: <strong>{{ $id }}</strong></div>
+            <div>Lista produktów nr: <strong>{{ $id }}</strong></div>
         </div>
         <div class="card-body">
             <div class="row mb-4">
@@ -39,8 +39,9 @@
                         <thead>
                             <tr>
                                 <th>Indeks</th>
-                                <th>Kategoria</th>
-                                <th class="center">ilość</th>
+                                <th>Waga (kg)</th>
+                                <th>Materiał</th>
+                                <th class="center">Ilość</th>
                                 <th class="center">Pozostało</th>
                                 <th class="center"></th>
                             </tr>
@@ -49,7 +50,8 @@
                             @foreach($orderdetails as $orderdetail)
                                 <tr>
                                     <td>{{ $orderdetail->prod_code }}</td>
-                                    <td class="center">{{ $orderdetail->logical_area->longdesc }}</td>
+                                    <td class="center">{{ $orderdetail->product->weight }}</td>
+                                    <td class="center">{{ $orderdetail->product->material_type }}</td>
                                     <td class="right">{{ $orderdetail->quantity }}</td>
                                     <td class="right">{{ $orderdetail->quantity_pick }}</td>
                                     <td>
@@ -73,7 +75,7 @@
     </div>
 </div>
 
-@if(isset($pickings))
+{{-- @if(isset($pickings))
 <div class="container">
     <div class="card mb-4">
         <div class="card-header d-flex align-items-center">
@@ -111,6 +113,6 @@
         </div>
     </div>
 </div>
-@endif
+@endif --}}
 
 @endsection

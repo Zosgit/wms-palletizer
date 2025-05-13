@@ -170,18 +170,33 @@
                                 </div>
                                 <div class="row p-4">
                                     <div class="col-md-6">
-                                        <div class="form-check form-switch">
-                                            <label class="form-check-label" for="shipment">Blokada dostawy</label>
-                                            <input class="form-check-input" type="checkbox" role="switch" id="shipment" name="shipment" @checked(old('shipment', $product->shipment))>
+                                        <label class="form-label">Czy produkt może wystawać poza opakowanie?</label>
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="radio" name="can_overhang" id="overhang_yes" value="1"
+                                                @checked(old('can_overhang', $product->can_overhang) == 1)>
+                                            <label class="form-check-label" for="overhang_yes">Tak</label>
+                                        </div>
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="radio" name="can_overhang" id="overhang_no" value="0"
+
+                                                @checked(old('can_overhang', $product->can_overhang) == 0)>
+                                            <label class="form-check-label" for="overhang_no">Nie</label>
                                         </div>
                                     </div>
                                     <div class="col-md-6">
+                                        <div class="form-check form-switch mb-2">
+                                            <label class="form-check-label" for="shipment">Blokada dostawy</label>
+                                            <input class="form-check-input" type="checkbox" role="switch" id="shipment" name="shipment"
+                                                    @checked(old('shipment', $product->shipment))>
+                                        </div>
                                         <div class="form-check form-switch">
                                             <label class="form-check-label" for="delivery">Blokada wydania</label>
-                                            <input class="form-check-input" type="checkbox" role="switch" id="delivery" name="delivery" @checked(old('delivery', $product->delivery))>
+                                            <input class="form-check-input" type="checkbox" role="switch" id="delivery" name="delivery"
+                                                @checked(old('delivery', $product->delivery))>
                                         </div>
                                     </div>
                                 </div>
+
                             </div>
 
                             <div class="row p-1">

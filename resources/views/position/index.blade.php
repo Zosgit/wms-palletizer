@@ -35,7 +35,7 @@
                 <thead>
                     <tr>
                         <th>Nazwa</th>
-                        <th>Nr kompletacji</th>
+                        <th>Numer kompletacji</th>
                         <th>Data</th>
                         <th>Akcje</th>
                     </tr>

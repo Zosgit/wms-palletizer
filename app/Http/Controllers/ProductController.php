@@ -53,6 +53,7 @@ class ProductController extends Controller
             'metric_id' => 'required',
             'ean' => 'required'
         ]);
+        $validatedAttributes['can_overhang'] = (int) $request->input('can_overhang', 0);
         $validatedAttributes['shipment'] = $request->get('shipment') == 'on' ? 1 : 0;
         $validatedAttributes['delivery'] = $request->get('delivery') == 'on' ? 1 : 0;
 
@@ -85,6 +86,8 @@ class ProductController extends Controller
             'metric_id' => 'required',
             'ean' => 'required'
         ]);
+
+        $validatedAttributes['can_overhang'] = (int) $request->input('can_overhang', 0);
 
         $validatedAttributes['shipment'] = $request->get('shipment') == 'on' ? 1 : 0;
         $validatedAttributes['delivery'] = $request->get('delivery') == 'on' ? 1 : 0;

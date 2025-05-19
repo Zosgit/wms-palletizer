@@ -131,4 +131,8 @@ Route::middleware('auth')->group(function () {
     Route::get('/position/frompick/{id}', [App\Http\Controllers\PositionController::class, 'createFromPick'])->name('position.frompick');
     Route::get('/position', [App\Http\Controllers\PositionController::class, 'index'])->name('position.index');
 
+    //komplety
+    Route::get('/productsets/create', [App\Http\Controllers\ProductSetController::class, 'create'])->name('productsets.create');
+    //oute::get('/position/frompick/{id}', [App\Http\Controllers\PositionController::class, 'createFromPick'])->name('position.frompick');
+    Route::get('/productsets', [App\Http\Controllers\ProductSetController::class, 'index'])->name('productsets.index');
 });

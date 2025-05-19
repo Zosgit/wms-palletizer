@@ -146,7 +146,6 @@
                             {{ $product_metric->code }}</option>
                             @endforeach
 
-
                                 @error('metric_id')
                                     <span class="invalid-feedback" role="alert">
                                         <strong>{{ $message }}</strong>

@@ -105,6 +105,11 @@
                 </a>
             </li>
             <li class="nav-item">
+                <a class="nav-link" href="{{ route('productsets.index') }}" target="_top">
+                    Komplety
+                </a>
+            </li>
+            <li class="nav-item">
                 <a class="nav-link" href="{{ route('producttypes.index') }}" target="_top">
                     Kategoria produktów
                 </a>

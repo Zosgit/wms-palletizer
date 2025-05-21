@@ -9,11 +9,21 @@
     </div>
 
     @if ($orderdetails->total() > 0)
-        <form method="post" action="{{ route('orderdetail.sendpick',['id' => $order->id]) }}">
+    <div class="ms-auto text-end w-100">
+        <form method="post" action="{{ route('orderdetail.sendpick', ['id' => $order->id]) }}" class="d-inline">
             @csrf
-            <button class="btn btn-sm btn-success float-end px-4">Rozpocznij kompletację</button>
+            <button class="btn btn-sm btn-info px-4">Rozpocznij kompletację ręczną</button>
         </form>
-    @endif
+
+        <form method="post" action="{{ route('orderdetail.autopick', ['id' => $order->id]) }}" class="d-inline ms-3">
+            @csrf
+            <button class="btn btn-sm btn-info px-4">
+                <i class="fas fa-cogs me-1"></i> Rozpocznij kompletację automatyczną
+            </button>
+        </form>
+    </div>
+@endif
+
 
 
 
@@ -70,7 +80,7 @@
                             <form href="{{ route('orderdetail.destroy', $orderdetail->id)}}" method="POST">
                                 @method('delete')
                                 @csrf
-                                <input class="btn btn-danger btn-sm" type="submit" value="Wybierz" />
+                                <input class="btn btn-success btn-sm" type="submit" value="Wybierz" />
                              </form>
                     </td>
                     </tr>

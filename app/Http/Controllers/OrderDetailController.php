@@ -77,7 +77,7 @@ class OrderDetailController extends Controller
 
     }
 
-    // wysyłam do kompletacji
+    // wysyłam do kompletacji recznej
     public function sendpick($id)
     {
         $order = Order::findorfail($id);
@@ -85,4 +85,12 @@ class OrderDetailController extends Controller
         $order->save();
         return redirect()->route('orders.index')->with('success', 'Dokument przekazany do kompletacji');
     }
+
+    // wysylam do kompletacji automatycznej(nasz algorytm)
+    public function autopick($id)
+    {
+        // Tu dodamy logikę algorytmu optymalizacji (heurystyka, objętość, itp.)
+        return redirect()->back()->with('success', 'Uruchomiono kompletację automatyczną (jeszcze bez logiki).');
+    }
+
 }

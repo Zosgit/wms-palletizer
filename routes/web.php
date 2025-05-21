@@ -53,6 +53,8 @@ Route::middleware('auth')->group(function () {
     Route::post('/orderdetail/add', [App\Http\Controllers\OrderDetailController::class,'save'])->name('orderdetail.save');
     Route::delete('/orderdetail/{id}/delete', [App\Http\Controllers\OrderDetailController::class,'destroy'])->name('orderdetail.destroy');
     Route::post('/orderdetail/{id}/send-pick', [App\Http\Controllers\OrderDetailController::class,'sendpick'])->name('orderdetail.sendpick');
+    Route::post('/orderdetail/{id}/autopick', [App\Http\Controllers\OrderDetailController::class, 'autopick'])->name('orderdetail.autopick');
+
 
     // pick
     Route::get('/picks', [App\Http\Controllers\PickController::class,'index'])->name('pick.index');

@@ -133,6 +133,6 @@ Route::middleware('auth')->group(function () {
 
     //komplety
     Route::get('/productsets/create', [App\Http\Controllers\ProductSetController::class, 'create'])->name('productsets.create');
-    //oute::get('/position/frompick/{id}', [App\Http\Controllers\PositionController::class, 'createFromPick'])->name('position.frompick');
     Route::get('/productsets', [App\Http\Controllers\ProductSetController::class, 'index'])->name('productsets.index');
+    Route::post('/productsets', [App\Http\Controllers\ProductSetController::class,'store'])->name('productsets.store');
 });

@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use App\Models\ProductType;
 use App\Models\ProductMetric;
+use App\Models\ProductSet;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Product extends Model
@@ -42,6 +43,10 @@ class Product extends Model
         return static::where('delivery', 0)->orderby('code','asc')->get();
     }
 
+    public function productsets()
+    {
+        return $this->belongsToMany(ProductSet::class, 'complete_product');
+    }
 
     public static function booted(){
 

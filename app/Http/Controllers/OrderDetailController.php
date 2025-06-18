@@ -103,23 +103,33 @@ public function autopick($id)
     $order->save();
 
     // 2. Pobierz pozycje zamówienia
-    $orderdetails = $order->order_details()->get();
+$orderdetails = $order->order_details()
+    ->get()
+    ->sortByDesc(function ($detail) {
+        return ($detail->product->weight ?? 0) * $detail->quantity;
+    })
+    ->values(); // resetuje indeksy
+$heaviestDetail = $orderdetails->first(); // pierwszy po sortowaniu to najcięższy
+
 
     // 3. Oblicz wagę i objętość zamówienia
     $totalVolume = 0;
     $totalWeight = 0;
+    $missingProducts = []; // tu zbierzemy brakujące produkty
 
     foreach ($orderdetails as $detail) {
         $product = $detail->product;
 
-        if ($product && $product->size_x && $product->size_y && $product->size_z) {
-            $volumePerItem = $product->size_x * $product->size_y * $product->size_z; // cm³
-            $totalVolume += $volumePerItem * $detail->quantity;
+        $hasAllData = $product && $product->size_x && $product->size_y && $product->size_z && $product->weight;
+
+        if (! $hasAllData) {
+            $missingProducts[] = $detail;
+            continue; // pomiń ten produkt
         }
 
-        if ($product && $product->weight) {
-            $totalWeight += $product->weight * $detail->quantity;
-        }
+        $volumePerItem = $product->size_x * $product->size_y * $product->size_z; // cm³
+        $totalVolume += $volumePerItem * $detail->quantity;
+        $totalWeight += $product->weight * $detail->quantity;
     }
 
     $totalVolume = $totalVolume / 1000000; // m³
@@ -223,6 +233,9 @@ public function autopick($id)
         }
     }
 
+
+
+
     // 10. Przekazanie danych do widoku
     return view('orderdetail.autopick', compact(
         'order',
@@ -242,7 +255,10 @@ public function autopick($id)
         'volumeBasedCount',
         'weightBasedCount',
         'paletCount',
-        'paletBasis'
+        'paletBasis',
+        'missingProducts',
+'heaviestDetail'
+
     ));
 }
 

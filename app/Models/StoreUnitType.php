@@ -18,6 +18,11 @@ class StoreUnitType extends Model
         return $this->belongsTo(User::class, 'created_by', 'id');
     }
 
+    public function units()
+    {
+        return $this->hasMany(StoreUnit::class, 'storeunittypes_id');
+    }
+
     public static function booted(){
 
         static::creating(function($model)

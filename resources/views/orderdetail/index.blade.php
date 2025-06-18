@@ -5,29 +5,23 @@
   </svg>&nbsp;Lista zamówień</a></br></br>
 <div class="container">
     <div class="card">
-      <div class="card-header d-flex align-items-center"><div>Zamówienie nr: <strong>{{ $order->order_nr}}</strong>
+      <div class="card-header d-flex align-items-center"><div>Zamówienie nr: <strong>{{ $order->order_nr}}</strong></div>
+        @if ($orderdetails->total() > 0)
+            <div class="ms-auto text-end w-100">
+                <form method="post" action="{{ route('orderdetail.sendpick', ['id' => $order->id]) }}" class="d-inline">
+                    @csrf
+                    <button class="btn btn-sm btn-info px-4">Rozpocznij kompletację ręczną</button>
+                </form>
+
+                <form method="post" action="{{ route('orderdetail.autopick', ['id' => $order->id]) }}" class="d-inline ms-3">
+                    @csrf
+                    <button class="btn btn-sm btn-info px-4">
+                        <i class="fas fa-cogs me-1"></i> Rozpocznij kompletację automatyczną
+                    </button>
+                </form>
+            </div>
+        @endif
     </div>
-
-    @if ($orderdetails->total() > 0)
-    <div class="ms-auto text-end w-100">
-        <form method="post" action="{{ route('orderdetail.sendpick', ['id' => $order->id]) }}" class="d-inline">
-            @csrf
-            <button class="btn btn-sm btn-info px-4">Rozpocznij kompletację ręczną</button>
-        </form>
-
-        <form method="post" action="{{ route('orderdetail.autopick', ['id' => $order->id]) }}" class="d-inline ms-3">
-            @csrf
-            <button class="btn btn-sm btn-info px-4">
-                <i class="fas fa-cogs me-1"></i> Rozpocznij kompletację automatyczną
-            </button>
-        </form>
-    </div>
-@endif
-
-
-
-
-        </div>
       <div class="card-body">
         <div class="row mb-4">
           <!-- /.col-->

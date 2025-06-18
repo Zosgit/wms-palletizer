@@ -8,6 +8,8 @@ use App\Models\Status;
 use App\Models\Firm;
 use App\Models\OrderDetail;
 use App\Models\Product;
+use App\Models\StoreUnit;
+use App\Models\StoreUnitType;
 use Illuminate\Support\Facades\DB;
 
 class OrderDetailController extends Controller
@@ -87,10 +89,162 @@ class OrderDetailController extends Controller
     }
 
     // wysylam do kompletacji automatycznej(nasz algorytm)
-    public function autopick($id)
-    {
-        // Tu dodamy logikę algorytmu optymalizacji (heurystyka, objętość, itp.)
-        return redirect()->back()->with('success', 'Uruchomiono kompletację automatyczną (jeszcze bez logiki).');
+    // public function autopick($id)
+    // {
+    //     // Tu dodamy logikę algorytmu optymalizacji (heurystyka, objętość, itp.)
+    //     return redirect()->back()->with('success', 'Uruchomiono kompletację automatyczną (jeszcze bez logiki).');
+    // }
+
+public function autopick($id)
+{
+    // 1. Pobierz zamówienie i zmień status
+    $order = Order::findOrFail($id);
+    $order->status_id = 503;
+    $order->save();
+
+    // 2. Pobierz pozycje zamówienia
+    $orderdetails = $order->order_details()->get();
+
+    // 3. Oblicz wagę i objętość zamówienia
+    $totalVolume = 0;
+    $totalWeight = 0;
+
+    foreach ($orderdetails as $detail) {
+        $product = $detail->product;
+
+        if ($product && $product->size_x && $product->size_y && $product->size_z) {
+            $volumePerItem = $product->size_x * $product->size_y * $product->size_z; // cm³
+            $totalVolume += $volumePerItem * $detail->quantity;
+        }
+
+        if ($product && $product->weight) {
+            $totalWeight += $product->weight * $detail->quantity;
+        }
     }
+
+    $totalVolume = $totalVolume / 1000000; // m³
+
+    // 4. Pobierz dostępne opakowania z magazynu (z EAN i typem)
+    $storeunits = StoreUnit::with('storeunittype')
+        ->whereNotNull('ean')
+        ->get();
+
+    // 5. Posortuj opakowania wg objętości malejąco
+    $sortedUnits = $storeunits->filter(function ($unit) {
+        $type = $unit->storeunittype;
+        return $type && $type->size_x && $type->size_y && $type->size_z && $type->loadwgt;
+    })->sortByDesc(function ($unit) {
+        $type = $unit->storeunittype;
+        return $type->size_x * $type->size_y * $type->size_z;
+    });
+
+    // 6. Dobierz konkretne opakowania
+    $usedUnits = [];
+    $remainingVolume = $totalVolume;
+    $remainingWeight = $totalWeight;
+
+    foreach ($sortedUnits as $unit) {
+        $type = $unit->storeunittype;
+        $unitVolume = ($type->size_x * $type->size_y * $type->size_z) / 1000000; // m³
+        $unitMaxWeight = $type->loadwgt;
+
+        if ($unitVolume <= 0 || $unitMaxWeight <= 0) {
+            continue;
+        }
+
+        $usedUnits[] = $unit;
+        $remainingVolume -= $unitVolume;
+        $remainingWeight -= $unitMaxWeight;
+
+        if ($remainingVolume <= 0 && $remainingWeight <= 0) {
+            break;
+        }
+    }
+
+    // 7. Statystyki opakowań
+    $unitsUsedCount = count($usedUnits);
+    $usedVolumeTotal = 0;
+    $usedWeightCapacityTotal = 0;
+
+    foreach ($usedUnits as $unit) {
+        $type = $unit->storeunittype;
+        $usedVolumeTotal += ($type->size_x * $type->size_y * $type->size_z) / 1000000;
+        $usedWeightCapacityTotal += $type->loadwgt;
+    }
+
+    $volumeFillPercent = $usedVolumeTotal > 0 ? round(($totalVolume / $usedVolumeTotal) * 100, 1) : 0;
+    $weightFillPercent = $usedWeightCapacityTotal > 0 ? round(($totalWeight / $usedWeightCapacityTotal) * 100, 1) : 0;
+
+    // 8. Statystyki zamówienia
+    $totalItems = $orderdetails->sum('quantity');
+    $uniqueProducts = $orderdetails->count();
+
+    $fragilityStats = [
+        'twardy' => 0,
+        'miekki' => 0,
+        'kruchy' => 0,
+    ];
+
+    foreach ($orderdetails as $detail) {
+        $fragility = strtolower($detail->product->fragility ?? 'inne');
+        if (isset($fragilityStats[$fragility])) {
+            $fragilityStats[$fragility] += $detail->quantity;
+        }
+    }
+
+    // 9. Oblicz liczbę palet na podstawie objętości i wagi
+    $selectedUnit = $sortedUnits->first();
+    $volumeBasedCount = 0;
+    $weightBasedCount = 0;
+    $paletCount = 0;
+    $paletBasis = '';
+
+    if ($selectedUnit && $selectedUnit->storeunittype) {
+        $type = $selectedUnit->storeunittype;
+        $unitVolume = ($type->size_x * $type->size_y * $type->size_z) / 1000000;
+        $unitMaxWeight = $type->loadwgt;
+
+        if ($unitVolume > 0) {
+            $volumeBasedCount = ceil($totalVolume / $unitVolume);
+        }
+
+        if ($unitMaxWeight > 0) {
+            $weightBasedCount = ceil($totalWeight / $unitMaxWeight);
+        }
+
+        $paletCount = max($volumeBasedCount, $weightBasedCount);
+
+        if ($volumeBasedCount > $weightBasedCount) {
+            $paletBasis = 'objętości';
+        } elseif ($weightBasedCount > $volumeBasedCount) {
+            $paletBasis = 'wagi';
+        } else {
+            $paletBasis = 'zarówno objętości, jak i wagi';
+        }
+    }
+
+    // 10. Przekazanie danych do widoku
+    return view('orderdetail.autopick', compact(
+        'order',
+        'orderdetails',
+        'totalVolume',
+        'totalWeight',
+        'storeunits',
+        'usedUnits',
+        'unitsUsedCount',
+        'usedVolumeTotal',
+        'usedWeightCapacityTotal',
+        'volumeFillPercent',
+        'weightFillPercent',
+        'totalItems',
+        'uniqueProducts',
+        'fragilityStats',
+        'volumeBasedCount',
+        'weightBasedCount',
+        'paletCount',
+        'paletBasis'
+    ));
+}
+
 
 }

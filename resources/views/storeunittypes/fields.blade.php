@@ -66,7 +66,7 @@
         </div>
         <div class="col-md-4">
             <div class="form-group">
-                <label for="size_z">Wysokość (cm)</label>
+                <label for="size_z">Dopuszczalna wysokość (cm)</label>
                 <input type="number" name="size_z"
                     value="{{ isset($storeunittype) ? $storeunittype->size_z : '' }}" class="number form-control @error('size_z') is-invalid @enderror" id="size_z" required>
 

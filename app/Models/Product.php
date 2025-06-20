@@ -45,7 +45,7 @@ class Product extends Model
 
     public function productsets()
     {
-        return $this->belongsToMany(ProductSet::class, 'complete_product');
+        return $this->belongsToMany(ProductSet::class, 'complete_product', 'product_id', 'product_sets_id');
     }
 
     public static function booted(){

@@ -32,48 +32,144 @@ class OrderDetailController extends Controller
 
     }
 
-    public function create($id ,Request $request)
-    {
-        $order = Order::findorfail($id);
-        $owner_id = $order->owner_id;
+public function create($id, Request $request)
+{
+    $order = Order::findOrFail($id);
+    $owner_id = $order->owner_id;
 
+    // Produkty spoza kompletów (z widoku v_reservation)
+    $query = DB::table('v_reservation')
+                ->where('owner_id', $owner_id)
+                ->where('sum_stock', '>', 0)
+                ->where('status_id', 302);
 
-        if ($request->search != null)
-        {
-            $stocks = DB::table('v_reservation')->where('prod_code','like','%'.$request->search.'%')
-                                            ->where('owner_id',$owner_id)
-                                            ->where('sum_stock','>',0)
-                                            ->where('status_id',302)->paginate(5000);
-        }
-        else
-        {
-            $stocks = DB::table('v_reservation')->where('owner_id',$owner_id)
-                                                ->where('sum_stock','>',0)
-                                                ->where('status_id',302)->paginate(5000);
-        }
-
-        return view('orderdetail.create',compact('order','stocks'));
-
+    if ($request->filled('search')) {
+        $query->where('prod_code', 'like', '%' . $request->search . '%');
     }
 
-    public function save(Request $request)
-    {
+    $stocks = $query->paginate(5000);
 
-        $validatedAttributes = $request->validate([
-            'order_id'          => 'required',
-            'quantity'          => 'required',
-            'logical_area_id'   => 'required',
-            'product_id'        => 'required',
-            'prod_code'         => 'required',
-            'prod_desc'         => 'required'
+    // Produkty należące do kompletów
+    $completeStocks = DB::table('complete_product')
+        ->join('products', 'products.id', '=', 'complete_product.product_id')
+        ->join('product_sets', 'product_sets.id', '=', 'complete_product.product_sets_id')
+        ->join('stocks', function ($join) use ($owner_id) {
+            $join->on('stocks.product_id', '=', 'products.id')
+                 ->where('stocks.owner_id', '=', $owner_id);
+        })
+        ->join('logical_areas', 'stocks.logical_area_id', '=', 'logical_areas.id')
+        ->select(
+            'product_sets.code as set_name',
+            'product_sets.id as set_id',
+            'stocks.product_id',
+            'stocks.logical_area_id',
+            'stocks.prod_code',
+            'products.longdesc',
+            'logical_areas.code as code_la',
+            DB::raw('SUM(stocks.quantity) as sum_stock')
+        )
+        ->groupBy(
+            'product_sets.code',
+            'product_sets.id',
+            'stocks.product_id',
+            'stocks.logical_area_id',
+            'stocks.prod_code',
+            'products.longdesc',
+            'logical_areas.code'
+        )
+        ->when($request->filled('search'), function ($query) use ($request) {
+            $query->where('stocks.prod_code', 'like', '%' . $request->search . '%');
+        })
+        ->get();
+
+    // Grupowanie kompletów
+    $groupedBySet = $completeStocks->groupBy('set_id');
+    $groupedStocks = [];
+
+    foreach ($groupedBySet as $setId => $items) {
+        $groupedStocks[] = [
+            'is_set' => true,
+            'set_id' => $setId,
+            'set_name' => $items->first()->set_name,
+            'items' => $items,
+        ];
+    }
+
+    // Dodajemy produkty spoza kompletów jako osobne wpisy
+    foreach ($stocks as $stock) {
+        $groupedStocks[] = $stock;
+    }
+
+    return view('orderdetail.create', compact('order', 'stocks'))->with('groupedDetails', $groupedStocks);
+
+}
+
+
+   public function save(Request $request)
+{
+    if ($request->has('set_id')) {
+        $validated = $request->validate([
+            'order_id' => 'required|integer',
+            'set_id'   => 'required|integer',
+            'set_quantity' => 'required|integer|min:1',
         ]);
 
-        OrderDetail::create($validatedAttributes);
+        // Pobierz komplet
+        $set_id = $validated['set_id'];
+        $qty = $validated['set_quantity'];
+        $order_id = $validated['order_id'];
 
-        return redirect()->route('orderdetail.create',['id'=> $request->order_id])->with('success', 'Produkt dodany poprawnie!');
+        // Pobierz produkty wchodzące w skład kompletu
+        $productsInSet = DB::table('complete_product')
+            ->where('product_sets_id', $set_id)
+            ->get();
 
+        foreach ($productsInSet as $productInSet) {
+            // Pobierz dane produktu i zapasu (np. z widoku v_reservation lub z tabeli stocks)
+            $stock = DB::table('v_reservation')
+                ->where('product_id', $productInSet->product_id)
+                ->where('owner_id', function($q) use ($order_id) {
+                    $q->select('owner_id')->from('orders')->where('id', $order_id)->limit(1);
+                })
+                ->where('sum_stock', '>', 0)
+                ->first();
 
+            if (!$stock) continue;
+
+            // Dopisz każdy produkt jako osobny wpis
+            OrderDetail::create([
+                'order_id'        => $order_id,
+                'quantity'        => $qty * 1, // 1 sztuka danego produktu na komplet — rozbuduj jeśli inne przeliczniki
+                'logical_area_id' => $stock->logical_area_id,
+                'product_id'      => $stock->product_id,
+                'prod_code'       => $stock->prod_code,
+                'prod_desc'       => $stock->longdesc
+            ]);
+        }
+
+        // (Opcjonalnie) zapisz w tabeli np. `shipment_sets` informacje o dodanym komplecie
+        // ShipmentSet::create([ 'order_id' => $order_id, 'product_sets_id' => $set_id, 'quantity' => $qty ]);
+
+        return redirect()->route('orderdetail.create', ['id' => $order_id])
+            ->with('success', 'Komplet dopisany i rozbity na produkty!');
     }
+
+    // Obsługa pojedynczego produktu (jak do tej pory)
+    $validatedAttributes = $request->validate([
+        'order_id'          => 'required',
+        'quantity'          => 'required',
+        'logical_area_id'   => 'required',
+        'product_id'        => 'required',
+        'prod_code'         => 'required',
+        'prod_desc'         => 'required'
+    ]);
+
+    OrderDetail::create($validatedAttributes);
+
+    return redirect()->route('orderdetail.create', ['id' => $request->order_id])
+        ->with('success', 'Produkt dodany poprawnie!');
+}
+
     public function distroy($id)
     {
 
@@ -97,143 +193,131 @@ class OrderDetailController extends Controller
 
 public function autopick($id)
 {
-    // 1. Pobierz zamówienie i zmień status
     $order = Order::findOrFail($id);
     $order->status_id = 503;
     $order->save();
 
-    // 2. Pobierz pozycje zamówienia
     $orderdetails = $order->order_details()
+        ->with('product')
         ->get()
-        ->sortByDesc(function ($detail) {
-            return ($detail->product->weight ?? 0) * $detail->quantity;
-        })
+        ->sortByDesc(fn($d) => ($d->product->weight ?? 0) * $d->quantity)
         ->values();
+
     $heaviestDetail = $orderdetails->first();
 
-    // 3. Pobierz dostępne opakowania
+    // Opakowania dostępne
     $storeunits = StoreUnit::with('storeunittype')
         ->whereNotNull('ean')
         ->whereIn('status_id', [101, 102])
         ->get();
 
-    // 4. Ustal maksymalne wymiary opakowań
     $maxUnitSize = [
         'x' => $storeunits->max(fn($u) => $u->storeunittype->size_x ?? 0),
         'y' => $storeunits->max(fn($u) => $u->storeunittype->size_y ?? 0),
         'z' => $storeunits->max(fn($u) => $u->storeunittype->size_z ?? 0),
     ];
 
-    // 5. Oblicz wagę i objętość zamówienia
     $totalVolume = 0;
     $totalWeight = 0;
     $missingProducts = [];
+    $trimmedProducts = [];
 
-    foreach ($orderdetails as $detail) {
-        $product = $detail->product;
+    // Grupuj po kompletach lub pojedynczych produktach
+    $groupedOrderDetails = $orderdetails->groupBy(fn($item) => $item->product_set_id ?? 'product_' . $item->id);
 
-        $hasAllData = $product && $product->size_x && $product->size_y && $product->size_z && $product->weight;
+    foreach ($groupedOrderDetails as $group) {
+        $groupVolume = 0;
+        $groupWeight = 0;
+        $validGroup = true;
 
-        if (! $hasAllData) {
-            $missingProducts[] = $detail;
-            continue;
+        foreach ($group as $detail) {
+            $product = $detail->product;
+
+            $hasAllData = $product && $product->size_x && $product->size_y && $product->size_z && $product->weight;
+
+            if (! $hasAllData) {
+                $missingProducts[] = $detail;
+                $validGroup = false;
+                continue;
+            }
+
+            $volumePerItem = $product->size_x * $product->size_y * $product->size_z;
+
+            if ($product->can_overhang == 1) {
+                $cut_x = min($product->size_x, $maxUnitSize['x']);
+                $cut_y = min($product->size_y, $maxUnitSize['y']);
+                $cut_z = min($product->size_z, $maxUnitSize['z']);
+                $volumePerItem = $cut_x * $cut_y * $cut_z;
+
+                $trimmedProducts[] = [
+                    'code' => $detail->prod_code,
+                    'desc' => $product->prod_desc ?? '',
+                    'original' => [
+                        'x' => $product->size_x,
+                        'y' => $product->size_y,
+                        'z' => $product->size_z,
+                    ],
+                    'trimmed' => [
+                        'x' => $cut_x,
+                        'y' => $cut_y,
+                        'z' => $cut_z,
+                    ]
+                ];
+            }
+
+            $groupVolume += $volumePerItem * $detail->quantity;
+            $groupWeight += $product->weight * $detail->quantity;
         }
 
-        $volumePerItem = $product->size_x * $product->size_y * $product->size_z;
-
-        if ($product->can_overhang == 1) {
-            $cut_x = min($product->size_x, $maxUnitSize['x']);
-            $cut_y = min($product->size_y, $maxUnitSize['y']);
-            $cut_z = min($product->size_z, $maxUnitSize['z']);
-            $volumePerItem = $cut_x * $cut_y * $cut_z;
+        if ($validGroup) {
+            $totalVolume += $groupVolume;
+            $totalWeight += $groupWeight;
         }
-
-        $totalVolume += $volumePerItem * $detail->quantity;
-        $totalWeight += $product->weight * $detail->quantity;
     }
 
-    $totalVolume = $totalVolume / 1000000; // m³
+    $totalVolume = $totalVolume / 1000000;
 
-    // 6. Zaoszczędzona objętość
-    $reducedVolumeCount = 0;
+    // Zaoszczędzona objętość
+    $reducedVolumeCount = count($trimmedProducts);
     $reducedVolumeAmount = 0;
-$trimmedProducts = [];
 
-
-    foreach ($orderdetails as $detail) {
-        $product = $detail->product;
-
-        if (! $product || ! $product->size_x || ! $product->size_y || ! $product->size_z || ! $product->weight) {
-            continue;
-        }
-
-if ($product->can_overhang == 1) {
-    $fullVolume = $product->size_x * $product->size_y * $product->size_z;
-
-    $cut_x = min($product->size_x, $maxUnitSize['x']);
-    $cut_y = min($product->size_y, $maxUnitSize['y']);
-    $cut_z = min($product->size_z, $maxUnitSize['z']);
-
-    $cutVolume = $cut_x * $cut_y * $cut_z;
-
-    $reducedVolumeAmount += ($fullVolume - $cutVolume) * $detail->quantity;
-    $reducedVolumeCount++;
-
-    $trimmedProducts[] = [
-        'code' => $detail->prod_code,
-        'desc' => $product->prod_desc ?? '',
-        'original' => [
-            'x' => $product->size_x,
-            'y' => $product->size_y,
-            'z' => $product->size_z,
-        ],
-        'trimmed' => [
-            'x' => $cut_x,
-            'y' => $cut_y,
-            'z' => $cut_z,
-        ]
-    ];
-}
-
+    foreach ($trimmedProducts as $item) {
+        $full = $item['original']['x'] * $item['original']['y'] * $item['original']['z'];
+        $cut = $item['trimmed']['x'] * $item['trimmed']['y'] * $item['trimmed']['z'];
+        $reducedVolumeAmount += ($full - $cut); // * ilość można dodać, jeśli potrzebne
     }
 
-    $reducedVolumeAmount = round($reducedVolumeAmount / 1000000, 4); // m³
+    $reducedVolumeAmount = round($reducedVolumeAmount / 1000000, 4);
 
-    // 7. Sortuj opakowania wg objętości malejąco
-    $sortedUnits = $storeunits->filter(function ($unit) {
+    // Sortowanie opakowań
+   $sortedUnits = $storeunits->filter(function ($unit) {
         $type = $unit->storeunittype;
         return $type && $type->size_x && $type->size_y && $type->size_z && $type->loadwgt;
-    })->sortByDesc(function ($unit) {
+    })->sortBy(function ($unit) {
         $type = $unit->storeunittype;
         return $type->size_x * $type->size_y * $type->size_z;
     });
 
-    // 8. Dobór opakowań
+    // Dobór opakowań
     $usedUnits = [];
     $remainingVolume = $totalVolume;
     $remainingWeight = $totalWeight;
 
     foreach ($sortedUnits as $unit) {
-        $type = $unit->storeunittype;
-        $unitVolume = ($type->size_x * $type->size_y * $type->size_z) / 1000000;
-        $unitMaxWeight = $type->loadwgt;
+    $type = $unit->storeunittype;
+    $unitVolume = ($type->size_x * $type->size_y * $type->size_z) / 1000000;
+    $unitMaxWeight = $type->loadwgt;
 
-        if ($unitVolume <= 0 || $unitMaxWeight <= 0) {
-            continue;
-        }
-
+    if ($unitVolume >= $totalVolume && $unitMaxWeight >= $totalWeight) {
         $usedUnits[] = $unit;
-        $remainingVolume -= $unitVolume;
-        $remainingWeight -= $unitMaxWeight;
-
-        if ($remainingVolume <= 0 && $remainingWeight <= 0) {
-            break;
-        }
+        $remainingVolume = 0;
+        $remainingWeight = 0;
+        break;
     }
+}
 
     $noUnitsAvailable = ($remainingVolume > 0 || $remainingWeight > 0);
 
-    // 9. Statystyki opakowań
     $unitsUsedCount = count($usedUnits);
     $usedVolumeTotal = 0;
     $usedWeightCapacityTotal = 0;
@@ -247,7 +331,6 @@ if ($product->can_overhang == 1) {
     $volumeFillPercent = $usedVolumeTotal > 0 ? round(($totalVolume / $usedVolumeTotal) * 100, 1) : 0;
     $weightFillPercent = $usedWeightCapacityTotal > 0 ? round(($totalWeight / $usedWeightCapacityTotal) * 100, 1) : 0;
 
-    // 10. Statystyki zamówienia
     $totalItems = $orderdetails->sum('quantity');
     $uniqueProducts = $orderdetails->count();
 
@@ -264,7 +347,7 @@ if ($product->can_overhang == 1) {
         }
     }
 
-    // 11. Oblicz liczbę palet
+    // Szacowana liczba palet
     $selectedUnit = $sortedUnits->first();
     $volumeBasedCount = 0;
     $weightBasedCount = 0;
@@ -295,7 +378,6 @@ if ($product->can_overhang == 1) {
         }
     }
 
-    // 12. Widok
     return view('orderdetail.autopick', compact(
         'order',
         'orderdetails',
@@ -323,6 +405,7 @@ if ($product->can_overhang == 1) {
         'trimmedProducts'
     ));
 }
+
 
 
 }

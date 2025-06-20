@@ -13,6 +13,12 @@ class ShipmentControl extends Model
     protected $fillable = ['ship_id','store_unit_id','store_unit_ean','product_id','prod_code','prod_desc','expiration_at','serial_nr','quarantine',
     'ship_detail_id','logical_area_id','quantity','fifo','remarks','status_id'];
 
+public function product()
+{
+    return $this->belongsTo(Product::class, 'product_id');
+}
+
+
     public static function booted(){
 
         static::creating(function($model)

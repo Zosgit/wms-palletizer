@@ -93,74 +93,55 @@
             @endif
 
             <div class="table-responsive-sm">
-    <table class="table table-striped table-hover table-sm">
-        <thead>
-            <tr>
-                <th>Lp.</th>
-                <th>Produkt</th>
-                <th>Materiał</th>
-                <th>Ilość</th>
-                <th>Waga (1 szt.)</th>
-                <th>Objętość (1 szt.)</th>
-                <th>Waga łączna</th>
-            </tr>
-        </thead>
-        <tbody>
-            @foreach ($orderdetails as $detail)
-                @php
-                    $product = $detail->product;
-                    $isMissing = in_array($detail, $missingProducts, true);
-                    $isHeaviest = isset($heaviestDetail) && $detail->id === $heaviestDetail->id;
-                    $weightPerItem = $product->weight ?? 0;
-                    $totalWeight = $weightPerItem * $detail->quantity;
-                    $volume = ($product->size_x && $product->size_y && $product->size_z)
-                        ? ($product->size_x * $product->size_y * $product->size_z) / 1000000
-                        : null;
-                @endphp
-                <tr class="{{ $isMissing ? 'table-danger' : ($isHeaviest ? 'table-warning' : '') }}">
-                    <td>{{ $loop->iteration }}</td>
-                    <td>
-                        {{ $detail->prod_code }}
-                        @if ($isHeaviest)
-                            <span class="badge bg-warning text-dark">najcięższy</span>
-                        @endif
-                    </td>
-                    <td>
-    {{ $product->material_type ?? 'brak danych' }}
-    @if(isset($product->material_type) && Str::of($product->material_type)->contains('kruchy'))
-        <span class="badge bg-danger-subtle text-danger ms-1">!</span>
-    @endif
-</td>
-
-                    <td>{{ $detail->quantity }}</td>
-                    <td>
-                        @if ($isMissing)
-                            ❌ brak
-                        @else
-                            {{ number_format($weightPerItem, 2) }} kg
-                        @endif
-                    </td>
-                    <td>
-                        @if ($isMissing)
-                            ❌ brak
-                        @elseif($volume !== null)
-                            {{ number_format($volume, 4) }} m³
-                        @else
-                            brak
-                        @endif
-                    </td>
-                    <td>
-                        @if ($isMissing)
-                            ❌ brak
-                        @else
-                            {{ number_format($totalWeight, 2) }} kg
-                        @endif
-                    </td>
-                </tr>
-            @endforeach
-        </tbody>
-    </table>
-</div>
+                <table class="table table-striped table-hover table-sm">
+                    <thead>
+                        <tr>
+                            <th>Lp.</th>
+                            <th>Produkt</th>
+                            <th>Materiał</th>
+                            <th>Ilość</th>
+                            <th>Waga (1 szt.)</th>
+                            <th>Objętość (1 szt.)</th>
+                            <th>Waga łączna</th>
+                            <th>Czy może wystawać?</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach ($orderdetails as $detail)
+                            @php
+                                $product = $detail->product;
+                                $isMissing = in_array($detail, $missingProducts, true);
+                                $isHeaviest = isset($heaviestDetail) && $detail->id === $heaviestDetail->id;
+                                $weightPerItem = $product->weight ?? 0;
+                                $itemTotalWeight = $weightPerItem * $detail->quantity;
+                                $volume = ($product->size_x && $product->size_y && $product->size_z)
+                                    ? ($product->size_x * $product->size_y * $product->size_z) / 1000000
+                                    : null;
+                            @endphp
+                            <tr class="{{ $isMissing ? 'table-danger' : ($isHeaviest ? 'table-warning' : '') }}">
+                                <td>{{ $loop->iteration }}</td>
+                                <td>
+                                    {{ $detail->prod_code }}
+                                    @if ($isHeaviest)
+                                        <span class="badge bg-warning text-dark">najcięższy</span>
+                                    @endif
+                                </td>
+                                <td>
+                                    {{ $product->material_type ?? 'brak danych' }}
+                                    @if(isset($product->material_type) && Str::of($product->material_type)->contains('kruchy'))
+                                        <span class="badge bg-danger-subtle text-danger ms-1">!</span>
+                                    @endif
+                                </td>
+                                <td>{{ $detail->quantity }}</td>
+                                <td>@if ($isMissing) ❌ brak @else {{ number_format($weightPerItem, 2) }} kg @endif</td>
+                                <td>@if ($isMissing) ❌ brak @elseif($volume !== null) {{ number_format($volume, 4) }} m³ @else brak @endif</td>
+                                <td>@if ($isMissing) ❌ brak @else {{ number_format($itemTotalWeight, 2) }} kg @endif</td>
+                                <td>{{ $product->can_overhang ? 'Tak' : 'Nie' }}</td>
+                            </tr>
+                        @endforeach
+                    </tbody>
+                </table>
+            </div>
 
 
 
@@ -240,11 +221,54 @@
                 </div>
             @endif
 
-            {{-- @if ($remainingVolume > 0 || $remainingWeight > 0)
-                <div class="alert alert-warning">
-                    <strong>⚠️ Uwaga!</strong> Na magazynie brakuje wystarczającej liczby opakowań, by zapakować całe zamówienie.
+            <div class="alert alert-info mt-4">
+                <h5><strong>📦 Statystyki pakowania:</strong></h5>
+                <ul class="mb-0">
+                    <li>Całkowita objętość zamówienia (po korektach): <strong>{{ number_format($totalVolume, 4) }} m³</strong></li>
+                    <li>Zaoszczędzona objętość dzięki wystającym produktom: <strong>{{ number_format($reducedVolumeAmount, 4) }} m³</strong></li>
+                    <li>Liczba produktów z możliwością wystawania: <strong>{{ $reducedVolumeCount }}</strong></li>
+                </ul>
+            </div>
+
+            @if ($reducedVolumeCount > 0)
+    <div class="alert alert-warning mt-4">
+        <h5><strong>✂️ Produkty przycięte (ze względu na wystawanie poza opakowanie):</strong></h5>
+        <ul>
+            <li><strong>Liczba produktów z wystawaniem:</strong> {{ $reducedVolumeCount }}</li>
+            <li><strong>Zaoszczędzona objętość dzięki przycięciu:</strong> {{ number_format($reducedVolumeAmount, 4) }} m³</li>
+            <li>System przyciął produkty do maksymalnych wymiarów dostępnych opakowań (długość, szerokość, wysokość), aby poprawnie wyliczyć zapotrzebowanie na przestrzeń.</li>
+        </ul>
+        @if (count($trimmedProducts) > 0)
+    <table class="table table-striped table-hover table-sm">
+        <thead>
+            <tr>
+                <th>Produkt</th>
+                <th>Wymiary oryginalne (cm)</th>
+                <th>Wymiary po przycięciu (cm)</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach ($trimmedProducts as $trim)
+                <tr>
+                    <td>{{ $trim['code'] }}</td>
+                    <td>{{ $trim['original']['x'] }} × {{ $trim['original']['y'] }} × {{ $trim['original']['z'] }}</td>
+                    <td>{{ $trim['trimmed']['x'] }} × {{ $trim['trimmed']['y'] }} × {{ $trim['trimmed']['z'] }}</td>
+                </tr>
+            @endforeach
+        </tbody>
+    </table>
+@endif
+
+    </div>
+@endif
+
+
+            @if ($noUnitsAvailable)
+                <div class="alert alert-danger mt-4">
+                    ⚠️ Brakuje dostępnych opakowań na magazynie (status: nowa lub dostępna), które spełniają wymagania wagowe i objętościowe. Nie udało się spakować całego zamówienia.
                 </div>
-            @endif --}}
+            @endif
+
 
             <div class="text-end mt-4">
                 <a href="{{ route('orders.index') }}" class="btn btn-secondary">Powrót</a>

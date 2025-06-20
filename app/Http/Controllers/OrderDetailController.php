@@ -103,19 +103,31 @@ public function autopick($id)
     $order->save();
 
     // 2. Pobierz pozycje zamówienia
-$orderdetails = $order->order_details()
-    ->get()
-    ->sortByDesc(function ($detail) {
-        return ($detail->product->weight ?? 0) * $detail->quantity;
-    })
-    ->values(); // resetuje indeksy
-$heaviestDetail = $orderdetails->first(); // pierwszy po sortowaniu to najcięższy
+    $orderdetails = $order->order_details()
+        ->get()
+        ->sortByDesc(function ($detail) {
+            return ($detail->product->weight ?? 0) * $detail->quantity;
+        })
+        ->values();
+    $heaviestDetail = $orderdetails->first();
 
+    // 3. Pobierz dostępne opakowania
+    $storeunits = StoreUnit::with('storeunittype')
+        ->whereNotNull('ean')
+        ->whereIn('status_id', [101, 102])
+        ->get();
 
-    // 3. Oblicz wagę i objętość zamówienia
+    // 4. Ustal maksymalne wymiary opakowań
+    $maxUnitSize = [
+        'x' => $storeunits->max(fn($u) => $u->storeunittype->size_x ?? 0),
+        'y' => $storeunits->max(fn($u) => $u->storeunittype->size_y ?? 0),
+        'z' => $storeunits->max(fn($u) => $u->storeunittype->size_z ?? 0),
+    ];
+
+    // 5. Oblicz wagę i objętość zamówienia
     $totalVolume = 0;
     $totalWeight = 0;
-    $missingProducts = []; // tu zbierzemy brakujące produkty
+    $missingProducts = [];
 
     foreach ($orderdetails as $detail) {
         $product = $detail->product;
@@ -124,22 +136,70 @@ $heaviestDetail = $orderdetails->first(); // pierwszy po sortowaniu to najcięż
 
         if (! $hasAllData) {
             $missingProducts[] = $detail;
-            continue; // pomiń ten produkt
+            continue;
         }
 
-        $volumePerItem = $product->size_x * $product->size_y * $product->size_z; // cm³
+        $volumePerItem = $product->size_x * $product->size_y * $product->size_z;
+
+        if ($product->can_overhang == 1) {
+            $cut_x = min($product->size_x, $maxUnitSize['x']);
+            $cut_y = min($product->size_y, $maxUnitSize['y']);
+            $cut_z = min($product->size_z, $maxUnitSize['z']);
+            $volumePerItem = $cut_x * $cut_y * $cut_z;
+        }
+
         $totalVolume += $volumePerItem * $detail->quantity;
         $totalWeight += $product->weight * $detail->quantity;
     }
 
     $totalVolume = $totalVolume / 1000000; // m³
 
-    // 4. Pobierz dostępne opakowania z magazynu (z EAN i typem)
-    $storeunits = StoreUnit::with('storeunittype')
-        ->whereNotNull('ean')
-        ->get();
+    // 6. Zaoszczędzona objętość
+    $reducedVolumeCount = 0;
+    $reducedVolumeAmount = 0;
+$trimmedProducts = [];
 
-    // 5. Posortuj opakowania wg objętości malejąco
+
+    foreach ($orderdetails as $detail) {
+        $product = $detail->product;
+
+        if (! $product || ! $product->size_x || ! $product->size_y || ! $product->size_z || ! $product->weight) {
+            continue;
+        }
+
+if ($product->can_overhang == 1) {
+    $fullVolume = $product->size_x * $product->size_y * $product->size_z;
+
+    $cut_x = min($product->size_x, $maxUnitSize['x']);
+    $cut_y = min($product->size_y, $maxUnitSize['y']);
+    $cut_z = min($product->size_z, $maxUnitSize['z']);
+
+    $cutVolume = $cut_x * $cut_y * $cut_z;
+
+    $reducedVolumeAmount += ($fullVolume - $cutVolume) * $detail->quantity;
+    $reducedVolumeCount++;
+
+    $trimmedProducts[] = [
+        'code' => $detail->prod_code,
+        'desc' => $product->prod_desc ?? '',
+        'original' => [
+            'x' => $product->size_x,
+            'y' => $product->size_y,
+            'z' => $product->size_z,
+        ],
+        'trimmed' => [
+            'x' => $cut_x,
+            'y' => $cut_y,
+            'z' => $cut_z,
+        ]
+    ];
+}
+
+    }
+
+    $reducedVolumeAmount = round($reducedVolumeAmount / 1000000, 4); // m³
+
+    // 7. Sortuj opakowania wg objętości malejąco
     $sortedUnits = $storeunits->filter(function ($unit) {
         $type = $unit->storeunittype;
         return $type && $type->size_x && $type->size_y && $type->size_z && $type->loadwgt;
@@ -148,14 +208,14 @@ $heaviestDetail = $orderdetails->first(); // pierwszy po sortowaniu to najcięż
         return $type->size_x * $type->size_y * $type->size_z;
     });
 
-    // 6. Dobierz konkretne opakowania
+    // 8. Dobór opakowań
     $usedUnits = [];
     $remainingVolume = $totalVolume;
     $remainingWeight = $totalWeight;
 
     foreach ($sortedUnits as $unit) {
         $type = $unit->storeunittype;
-        $unitVolume = ($type->size_x * $type->size_y * $type->size_z) / 1000000; // m³
+        $unitVolume = ($type->size_x * $type->size_y * $type->size_z) / 1000000;
         $unitMaxWeight = $type->loadwgt;
 
         if ($unitVolume <= 0 || $unitMaxWeight <= 0) {
@@ -171,7 +231,9 @@ $heaviestDetail = $orderdetails->first(); // pierwszy po sortowaniu to najcięż
         }
     }
 
-    // 7. Statystyki opakowań
+    $noUnitsAvailable = ($remainingVolume > 0 || $remainingWeight > 0);
+
+    // 9. Statystyki opakowań
     $unitsUsedCount = count($usedUnits);
     $usedVolumeTotal = 0;
     $usedWeightCapacityTotal = 0;
@@ -185,7 +247,7 @@ $heaviestDetail = $orderdetails->first(); // pierwszy po sortowaniu to najcięż
     $volumeFillPercent = $usedVolumeTotal > 0 ? round(($totalVolume / $usedVolumeTotal) * 100, 1) : 0;
     $weightFillPercent = $usedWeightCapacityTotal > 0 ? round(($totalWeight / $usedWeightCapacityTotal) * 100, 1) : 0;
 
-    // 8. Statystyki zamówienia
+    // 10. Statystyki zamówienia
     $totalItems = $orderdetails->sum('quantity');
     $uniqueProducts = $orderdetails->count();
 
@@ -202,7 +264,7 @@ $heaviestDetail = $orderdetails->first(); // pierwszy po sortowaniu to najcięż
         }
     }
 
-    // 9. Oblicz liczbę palet na podstawie objętości i wagi
+    // 11. Oblicz liczbę palet
     $selectedUnit = $sortedUnits->first();
     $volumeBasedCount = 0;
     $weightBasedCount = 0;
@@ -233,10 +295,7 @@ $heaviestDetail = $orderdetails->first(); // pierwszy po sortowaniu to najcięż
         }
     }
 
-
-
-
-    // 10. Przekazanie danych do widoku
+    // 12. Widok
     return view('orderdetail.autopick', compact(
         'order',
         'orderdetails',
@@ -257,8 +316,11 @@ $heaviestDetail = $orderdetails->first(); // pierwszy po sortowaniu to najcięż
         'paletCount',
         'paletBasis',
         'missingProducts',
-'heaviestDetail'
-
+        'heaviestDetail',
+        'reducedVolumeCount',
+        'reducedVolumeAmount',
+        'noUnitsAvailable',
+        'trimmedProducts'
     ));
 }
 

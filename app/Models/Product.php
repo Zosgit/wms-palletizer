@@ -48,6 +48,12 @@ class Product extends Model
         return $this->belongsToMany(ProductSet::class, 'complete_product', 'product_id', 'product_sets_id');
     }
 
+    public function orderPickAutos()
+    {
+        return $this->belongsToMany(OrderPickAuto::class, 'order_pick_auto_product');
+    }
+
+
     public static function booted(){
 
         static::creating(function($model)

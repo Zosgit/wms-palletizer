@@ -143,11 +143,11 @@
     </li>
 
     <li class="nav-item">
-        <a class="nav-link" href="{{ route('position.index') }}">
+        <a class="nav-link" href="{{ route('orderpickauto.index') }}">
             <svg class="nav-icon">
                 <use xlink:href="{{ asset('icons/coreui.svg#cil-storage') }}"></use>
             </svg>
-            Pozycjonowanie
+            Zatwierdzone kompletacje
         </a>
     </li>
 

@@ -10,6 +10,7 @@ use App\Models\OrderDetail;
 use App\Models\Product;
 use App\Models\StoreUnit;
 use App\Models\StoreUnitType;
+use App\Models\OrderPickAuto;
 use Illuminate\Support\Facades\DB;
 
 class OrderDetailController extends Controller
@@ -348,35 +349,70 @@ public function autopick($id)
     }
 
     // Szacowana liczba palet
-    $selectedUnit = $sortedUnits->first();
-    $volumeBasedCount = 0;
-    $weightBasedCount = 0;
-    $paletCount = 0;
-    $paletBasis = '';
+    $bestUnit = null;
+$minCount = PHP_INT_MAX;
+$paletBasis = '';
+$volumeBasedCount = 0;
+$weightBasedCount = 0;
+$paletCount = 0;
 
-    if ($selectedUnit && $selectedUnit->storeunittype) {
-        $type = $selectedUnit->storeunittype;
-        $unitVolume = ($type->size_x * $type->size_y * $type->size_z) / 1000000;
-        $unitMaxWeight = $type->loadwgt;
+foreach ($sortedUnits as $unit) {
+    $type = $unit->storeunittype;
+    $unitVolume = ($type->size_x * $type->size_y * $type->size_z) / 1000000;
+    $unitWeight = $type->loadwgt;
 
-        if ($unitVolume > 0) {
-            $volumeBasedCount = ceil($totalVolume / $unitVolume);
-        }
+    if ($unitVolume <= 0 || $unitWeight <= 0) continue;
 
-        if ($unitMaxWeight > 0) {
-            $weightBasedCount = ceil($totalWeight / $unitMaxWeight);
-        }
+    $volCount = ceil($totalVolume / $unitVolume);
+    $wgtCount = ceil($totalWeight / $unitWeight);
+    $needed = max($volCount, $wgtCount);
 
-        $paletCount = max($volumeBasedCount, $weightBasedCount);
+    if ($needed < $minCount) {
+        $minCount = $needed;
+        $bestUnit = $type;
 
-        if ($volumeBasedCount > $weightBasedCount) {
+        if ($volCount > $wgtCount) {
             $paletBasis = 'objętości';
-        } elseif ($weightBasedCount > $volumeBasedCount) {
+        } elseif ($wgtCount > $volCount) {
             $paletBasis = 'wagi';
         } else {
             $paletBasis = 'zarówno objętości, jak i wagi';
         }
+
+        $volumeBasedCount = $volCount;
+        $weightBasedCount = $wgtCount;
     }
+}
+
+$paletCount = $minCount;
+
+
+    //zapis do bazy
+    // Usuń poprzednie dane kompletacji (jeśli istnieją)
+    OrderPickAuto::where('order_id', $order->id)->delete();
+
+    // Zapisz nowe dane kompletacji
+    foreach ($usedUnits as $unit) {
+        $type = $unit->storeunittype;
+
+        $auto = OrderPickAuto::create([
+            'order_id' => $order->id,
+            'store_unit_id' => $unit->id,
+            'used_volume' => ($type->size_x * $type->size_y * $type->size_z) / 1000000,
+            'used_weight' => $type->loadwgt,
+        ]);
+
+        // pobieramy produkty przypisane do danego zamówienia
+        foreach ($order->order_details as $detail) {
+            DB::table('order_pick_auto_product')->insert([
+                'order_pick_auto_id' => $auto->id,
+                'product_id' => $detail->product_id,
+            ]);
+        }
+    }
+
+
+
 
     return view('orderdetail.autopick', compact(
         'order',
@@ -407,5 +443,32 @@ public function autopick($id)
 }
 
 
+public function confirm(Order $order)
+{
+    OrderPickAuto::where('order_id', $order->id)->update(['confirmed' => true]);
+    //dd(OrderPickAuto::where('order_id', $order->id)->get());
+    return redirect()->route('orders.index')->with('success', 'Kompletacja została zatwierdzona.');
+}
+
+public function indexConfirmed()
+{
+    $orders = OrderPickAuto::where('confirmed', true)
+        ->select('order_id')
+        ->distinct()
+        ->with('order')
+        ->get();
+
+    return view('orderdetail.confirmed.index', compact('orders'));
+}
+
+public function showConfirmed(Order $order)
+{
+    $picks = OrderPickAuto::where('order_id', $order->id)
+        ->where('confirmed', true)
+        ->with('storeunit.storeunittype')
+        ->get();
+
+    return view('orderdetail.confirmed.show', compact('order', 'picks'));
+}
 
 }

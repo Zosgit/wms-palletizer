@@ -272,9 +272,16 @@
 
             <div class="text-end mt-4">
                 <a href="{{ route('orders.index') }}" class="btn btn-secondary">Powrót</a>
-                <button class="btn btn-success">Zatwierdź kompletację</button>
+                <form action="{{ route('orders.confirm', $order->id) }}" method="POST">
+                    @csrf
+                    <button type="submit" class="btn btn-success">
+                        Zatwierdź kompletację
+                    </button>
+                </form>
+
             </div>
         </div>
     </div>
 </div>
+
 @endsection

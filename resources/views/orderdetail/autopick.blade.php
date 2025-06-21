@@ -1,5 +1,3 @@
-{{-- http://127.0.0.1:8000/orderdetail/37/autopick --}}
-
 @extends('layouts.app')
 
 @section('title') {{ 'Kompletacja automatyczna' }} @endsection
@@ -43,56 +41,64 @@
             </div>
             <hr>
             <h5 class="mb-3">Podsumowanie kompletacji</h5>
-            <div class="mb-4">
-                <hr>
-                {{-- <p><strong>Użyte opakowania:</strong></p>
-                    @if($storeunits->count() > 0)
-                        <table class="table table-sm table-striped table-hover">
-                            <thead>
-                                <tr>
-                                    <th>Kod EAN</th>
-                                    <th>Typ opakowania</th>
-                                    <th>Wymiary (cm)</th>
-                                    <th>Objętość (m³)</th>
-                                    <th>Max waga (kg)</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                @foreach($storeunits as $unit)
-                                    @php
-                                        $type = $unit->storeunittype;
-                                        $volume = null;
-                                        if ($type && $type->size_x && $type->size_y && $type->size_z) {
-                                            $volume = ($type->size_x * $type->size_y * $type->size_z) / 1000000;
-                                        }
-                                    @endphp
-                                    <tr>
-                                        <td>{{ $unit->ean ?? '-' }}</td>
-                                        <td>{{ $unit->storeunittype->code ?? '-' }}</td>
-                                        <td>{{ $unit->storeunittype->size_x }} x {{ $unit->storeunittype->size_y }} x {{ $unit->storeunittype->size_z }}</td>
-                                        <td>{{ $volume ? number_format($volume, 3) : 'brak danych' }}</td>
-                                        <td>{{ $unit->storeunittype->loadwgt ?? '-' }}</td>
-                                    </tr>
+
+            {{-- Sekcja porównawcza: Algorytm objętościowy vs wagowy --}}
+            <div class="row mt-4">
+                <div class="col-md-6">
+                    <div class="alert alert-primary">
+                        <h5><strong>📦 Algorytm objętościowy</strong></h5>
+                        <ul>
+                            <li><strong>Liczba opakowań:</strong> {{ $volCount }}</li>
+                            <li><strong>Całkowita objętość opakowań:</strong> {{ number_format($volVolume, 4) }} m³</li>
+                            <li><strong>Ładowność całkowita:</strong> {{ number_format($volWeight, 2) }} kg</li>
+                        </ul>
+                        @if (count($volumeUnits) > 0)
+                        <div class="mt-2">
+                            <p><strong>Użyte opakowania:</strong></p>
+                            <ul>
+                                @foreach ($volumeUnits as $unit)
+                                    <li>
+                                        EAN: {{ $unit->ean ?? '-' }},
+                                        Typ: {{ $unit->storeunittype->code ?? '-' }},
+                                        Wymiary: {{ $unit->storeunittype->size_x }}x{{ $unit->storeunittype->size_y }}x{{ $unit->storeunittype->size_z }} cm,
+                                        Objętość: {{ number_format(($unit->storeunittype->size_x * $unit->storeunittype->size_y * $unit->storeunittype->size_z)/1000000, 3) }} m³,
+                                        Max waga: {{ $unit->storeunittype->loadwgt }} kg
+                                    </li>
                                 @endforeach
-                            </tbody>
-                        </table>
-                    @else
-                        <p class="text-danger">Brak jednostek opakowaniowych do wyświetlenia.</p>
-                    @endif --}}
+                            </ul>
+                        </div>
+                        @endif
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="alert alert-success">
+                        <h5><strong>📦 Algorytm wagowy</strong></h5>
+                        <ul>
+                            <li><strong>Liczba opakowań:</strong> {{ $wgtCount }}</li>
+                            <li><strong>Całkowita objętość opakowań:</strong> {{ number_format($wgtVolume, 4) }} m³</li>
+                            <li><strong>Ładowność całkowita:</strong> {{ number_format($wgtWeight, 2) }} kg</li>
+                        </ul>
+                        @if (count($weightUnits) > 0)
+                        <div class="mt-2">
+                            <p><strong>Użyte opakowania:</strong></p>
+                            <ul>
+                                @foreach ($weightUnits as $unit)
+                                    <li>
+                                        EAN: {{ $unit->ean ?? '-' }},
+                                        Typ: {{ $unit->storeunittype->code ?? '-' }},
+                                        Wymiary: {{ $unit->storeunittype->size_x }}x{{ $unit->storeunittype->size_y }}x{{ $unit->storeunittype->size_z }} cm,
+                                        Objętość: {{ number_format(($unit->storeunittype->size_x * $unit->storeunittype->size_y * $unit->storeunittype->size_z)/1000000, 3) }} m³,
+                                        Max waga: {{ $unit->storeunittype->loadwgt }} kg
+                                    </li>
+                                @endforeach
+                            </ul>
+                        </div>
+                        @endif
+                    </div>
+                </div>
             </div>
 
-            @if (count($missingProducts) > 0)
-                <div class="alert alert-danger mt-3">
-                    <strong>Uwaga:</strong> Niektóre produkty z zamówienia nie są dostępne w magazynie i nie zostały uwzględnione w kompletacji:
-                    <ul>
-                        @foreach ($missingProducts as $missing)
-                            <li>{{ $missing->prod_code }} – {{ $missing->prod_desc }}</li>
-                        @endforeach
-                    </ul>
-                </div>
-            @endif
-
-            <div class="table-responsive-sm">
+           <div class="table-responsive-sm">
                 <table class="table table-striped table-hover table-sm">
                     <thead>
                         <tr>
@@ -143,145 +149,22 @@
                 </table>
             </div>
 
-
-
-            {{-- <div class="alert alert-success">
-                <p><strong>Optymalnie dobrane opakowania ({{ $unitsUsedCount }} szt.):</strong></p>
-                <ul>
-                    @foreach ($usedUnits as $unit)
-                        <li>
-                            EAN: {{ $unit->ean ?? '-' }},
-                            Typ: {{ $unit->storeunittype->code ?? '-' }},
-                            Wymiary: {{ $unit->storeunittype->size_x }}x{{ $unit->storeunittype->size_y }}x{{ $unit->storeunittype->size_z }} cm,
-                            Objętość: {{ number_format(($unit->storeunittype->size_x * $unit->storeunittype->size_y * $unit->storeunittype->size_z)/1000000, 3) }} m³,
-                            Max waga: {{ $unit->storeunittype->loadwgt }} kg
-                        </li>
-                    @endforeach
-                </ul>
-            </div> --}}
-
-            <div class="alert alert-info mt-4">
-                <h5><strong>📦 Dane zamówienia</strong></h5>
-                <ul>
-                    <li><strong>Liczba pozycji:</strong> {{ $uniqueProducts }}</li>
-                    <li><strong>Łączna ilość sztuk:</strong> {{ $totalItems }}</li>
-                    <li><strong>Waga całkowita:</strong> {{ number_format($totalWeight, 2) }} kg</li>
-                    <li><strong>Objętość całkowita:</strong> {{ number_format($totalVolume, 4) }} m³</li>
-                    <li><strong>Średnia waga produktu:</strong> {{ $totalItems > 0 ? number_format($totalWeight / $totalItems, 3) : 0 }} kg</li>
-                    <li><strong>Średnia objętość produktu:</strong> {{ $totalItems > 0 ? number_format($totalVolume / $totalItems, 6) : 0 }} m³</li>
-                </ul>
-            </div>
-
-            <div class="alert alert-warning mt-4">
-                <h5><strong>📦 Użyte opakowania</strong></h5>
-                <ul>
-                    <li><strong>Liczba opakowań:</strong> {{ $unitsUsedCount }}</li>
-                    <li><strong>Objętość wszystkich opakowań:</strong> {{ number_format($usedVolumeTotal, 4) }} m³</li>
-                    <li><strong>Wypełnienie objętościowe:</strong> {{ $volumeFillPercent }}%</li>
-                    <li><strong>Ładowność wszystkich opakowań:</strong> {{ number_format($usedWeightCapacityTotal, 2) }} kg</li>
-                    <li><strong>Wypełnienie wagowe:</strong> {{ $weightFillPercent }}%</li>
-                    <li><strong>Średnia objętość opakowania:</strong> {{ $unitsUsedCount > 0 ? number_format($usedVolumeTotal / $unitsUsedCount, 4) : 0 }} m³</li>
-                    <li><strong>Średnia ładowność opakowania:</strong> {{ $unitsUsedCount > 0 ? number_format($usedWeightCapacityTotal / $unitsUsedCount, 2) : 0 }} kg</li>
-                </ul>
-            </div>
-
-            @php
-                $totalFragileCount = array_sum($fragilityStats);
-            @endphp
-
-
-            @if (isset($paletCount) && $paletCount > 0)
-                <div class="alert alert-primary mt-4">
-                    <h5><strong>📊 Szacowana liczba opakowań</strong></h5>
-                    <ul>
-                        <li><strong>Na podstawie objętości:</strong> {{ $volumeBasedCount }} opakowania</li>
-                        <li><strong>Na podstawie wagi:</strong> {{ $weightBasedCount }} opakowania</li>
-                        <li><strong>Wybrana liczba palet:</strong> {{ $paletCount }} opakowania<br>
-                            <small class="text-muted">na podstawie {{ $paletBasis }}</small>
-                        </li>
-                    </ul>
-                </div>
-            @endif
-
-            {{-- Statystyki kompletacji --}}
-            @if ($unitsUsedCount > 0)
-                <div class="alert alert-success mt-4">
-                    <h5><strong>📦 Użyte opakowania (konkretne jednostki z magazynu)</strong></h5>
-                    <ul>
-                        @foreach ($usedUnits as $unit)
-                            <li>
-                                EAN: <strong>{{ $unit->ean }}</strong>,
-                                Typ: {{ $unit->storeunittype->code ?? '-' }},
-                                Wymiary: {{ $unit->storeunittype->size_x }}x{{ $unit->storeunittype->size_y }}x{{ $unit->storeunittype->size_z }} cm,
-                                Objętość: {{ number_format(($unit->storeunittype->size_x * $unit->storeunittype->size_y * $unit->storeunittype->size_z)/1000000, 3) }} m³,
-                                Max waga: {{ $unit->storeunittype->loadwgt }} kg
-                            </li>
-                        @endforeach
-                    </ul>
-                </div>
-            @endif
-
-            <div class="alert alert-info mt-4">
-                <h5><strong>📦 Statystyki pakowania:</strong></h5>
-                <ul class="mb-0">
-                    <li>Całkowita objętość zamówienia (po korektach): <strong>{{ number_format($totalVolume, 4) }} m³</strong></li>
-                    <li>Zaoszczędzona objętość dzięki wystającym produktom: <strong>{{ number_format($reducedVolumeAmount, 4) }} m³</strong></li>
-                    <li>Liczba produktów z możliwością wystawania: <strong>{{ $reducedVolumeCount }}</strong></li>
-                </ul>
-            </div>
-
-            @if ($reducedVolumeCount > 0)
-    <div class="alert alert-warning mt-4">
-        <h5><strong>✂️ Produkty przycięte (ze względu na wystawanie poza opakowanie):</strong></h5>
-        <ul>
-            <li><strong>Liczba produktów z wystawaniem:</strong> {{ $reducedVolumeCount }}</li>
-            <li><strong>Zaoszczędzona objętość dzięki przycięciu:</strong> {{ number_format($reducedVolumeAmount, 4) }} m³</li>
-            <li>System przyciął produkty do maksymalnych wymiarów dostępnych opakowań (długość, szerokość, wysokość), aby poprawnie wyliczyć zapotrzebowanie na przestrzeń.</li>
-        </ul>
-        @if (count($trimmedProducts) > 0)
-    <table class="table table-striped table-hover table-sm">
-        <thead>
-            <tr>
-                <th>Produkt</th>
-                <th>Wymiary oryginalne (cm)</th>
-                <th>Wymiary po przycięciu (cm)</th>
-            </tr>
-        </thead>
-        <tbody>
-            @foreach ($trimmedProducts as $trim)
-                <tr>
-                    <td>{{ $trim['code'] }}</td>
-                    <td>{{ $trim['original']['x'] }} × {{ $trim['original']['y'] }} × {{ $trim['original']['z'] }}</td>
-                    <td>{{ $trim['trimmed']['x'] }} × {{ $trim['trimmed']['y'] }} × {{ $trim['trimmed']['z'] }}</td>
-                </tr>
-            @endforeach
-        </tbody>
-    </table>
-@endif
-
-    </div>
-@endif
-
-
             @if ($noUnitsAvailable)
                 <div class="alert alert-danger mt-4">
                     ⚠️ Brakuje dostępnych opakowań na magazynie (status: nowa lub dostępna), które spełniają wymagania wagowe i objętościowe. Nie udało się spakować całego zamówienia.
                 </div>
             @endif
 
-
             <div class="text-end mt-4">
                 <a href="{{ route('orders.index') }}" class="btn btn-secondary">Powrót</a>
-                <form action="{{ route('orders.confirm', $order->id) }}" method="POST">
+                <form action="{{ route('orders.confirm', $order->id) }}" method="POST" class="d-inline">
                     @csrf
                     <button type="submit" class="btn btn-success">
                         Zatwierdź kompletację
                     </button>
                 </form>
-
             </div>
         </div>
     </div>
 </div>
-
 @endsection

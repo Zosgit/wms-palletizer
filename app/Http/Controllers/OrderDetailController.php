@@ -192,263 +192,470 @@ public function create($id, Request $request)
     //     return redirect()->back()->with('success', 'Uruchomiono kompletację automatyczną (jeszcze bez logiki).');
     // }
 
+
+
 public function autopick($id)
-{
-    $order = Order::findOrFail($id);
-    $order->status_id = 503;
-    $order->save();
+    {
+        $order = Order::findOrFail($id);
+        $order->status_id = 503;
+        $order->save();
 
-    $orderdetails = $order->order_details()
-        ->with('product')
-        ->get()
-        ->sortByDesc(fn($d) => ($d->product->weight ?? 0) * $d->quantity)
-        ->values();
+        $orderdetails = $order->order_details()
+            ->with('product')
+            ->get()
+            ->sortByDesc(fn($d) => ($d->product->weight ?? 0) * $d->quantity)
+            ->values();
 
-    $heaviestDetail = $orderdetails->first();
+        $heaviestDetail = $orderdetails->first();
 
-    // Opakowania dostępne
-    $storeunits = StoreUnit::with('storeunittype')
-        ->whereNotNull('ean')
-        ->whereIn('status_id', [101, 102])
-        ->get();
+        $storeunits = StoreUnit::with('storeunittype')
+            ->whereNotNull('ean')
+            ->whereIn('status_id', [101, 102])
+            ->get();
 
-    $maxUnitSize = [
-        'x' => $storeunits->max(fn($u) => $u->storeunittype->size_x ?? 0),
-        'y' => $storeunits->max(fn($u) => $u->storeunittype->size_y ?? 0),
-        'z' => $storeunits->max(fn($u) => $u->storeunittype->size_z ?? 0),
-    ];
+        $maxUnitSize = [
+            'x' => $storeunits->max(fn($u) => $u->storeunittype->size_x ?? 0),
+            'y' => $storeunits->max(fn($u) => $u->storeunittype->size_y ?? 0),
+            'z' => $storeunits->max(fn($u) => $u->storeunittype->size_z ?? 0),
+        ];
 
-    $totalVolume = 0;
-    $totalWeight = 0;
-    $missingProducts = [];
-    $trimmedProducts = [];
+        $totalVolume = 0;
+        $totalWeight = 0;
+        $missingProducts = [];
+        $trimmedProducts = [];
 
-    // Grupuj po kompletach lub pojedynczych produktach
-    $groupedOrderDetails = $orderdetails->groupBy(fn($item) => $item->product_set_id ?? 'product_' . $item->id);
+        $groupedOrderDetails = $orderdetails->groupBy(fn($item) => $item->product_set_id ?? 'product_' . $item->id);
 
-    foreach ($groupedOrderDetails as $group) {
-        $groupVolume = 0;
-        $groupWeight = 0;
-        $validGroup = true;
+        foreach ($groupedOrderDetails as $group) {
+            $groupVolume = 0;
+            $groupWeight = 0;
+            $validGroup = true;
 
-        foreach ($group as $detail) {
-            $product = $detail->product;
+            foreach ($group as $detail) {
+                $product = $detail->product;
+                $hasAllData = $product && $product->size_x && $product->size_y && $product->size_z && $product->weight;
 
-            $hasAllData = $product && $product->size_x && $product->size_y && $product->size_z && $product->weight;
+                if (! $hasAllData) {
+                    $missingProducts[] = $detail;
+                    $validGroup = false;
+                    continue;
+                }
 
-            if (! $hasAllData) {
-                $missingProducts[] = $detail;
-                $validGroup = false;
-                continue;
+                $volumePerItem = $product->size_x * $product->size_y * $product->size_z;
+
+                if ($product->can_overhang == 1) {
+                    $cut_x = min($product->size_x, $maxUnitSize['x']);
+                    $cut_y = min($product->size_y, $maxUnitSize['y']);
+                    $cut_z = min($product->size_z, $maxUnitSize['z']);
+                    $volumePerItem = $cut_x * $cut_y * $cut_z;
+
+                    $trimmedProducts[] = [
+                        'code' => $detail->prod_code,
+                        'desc' => $product->prod_desc ?? '',
+                        'original' => ['x' => $product->size_x, 'y' => $product->size_y, 'z' => $product->size_z],
+                        'trimmed' => ['x' => $cut_x, 'y' => $cut_y, 'z' => $cut_z]
+                    ];
+                }
+
+                $groupVolume += $volumePerItem * $detail->quantity;
+                $groupWeight += $product->weight * $detail->quantity;
             }
 
-            $volumePerItem = $product->size_x * $product->size_y * $product->size_z;
-
-            if ($product->can_overhang == 1) {
-                $cut_x = min($product->size_x, $maxUnitSize['x']);
-                $cut_y = min($product->size_y, $maxUnitSize['y']);
-                $cut_z = min($product->size_z, $maxUnitSize['z']);
-                $volumePerItem = $cut_x * $cut_y * $cut_z;
-
-                $trimmedProducts[] = [
-                    'code' => $detail->prod_code,
-                    'desc' => $product->prod_desc ?? '',
-                    'original' => [
-                        'x' => $product->size_x,
-                        'y' => $product->size_y,
-                        'z' => $product->size_z,
-                    ],
-                    'trimmed' => [
-                        'x' => $cut_x,
-                        'y' => $cut_y,
-                        'z' => $cut_z,
-                    ]
-                ];
+            if ($validGroup) {
+                $totalVolume += $groupVolume;
+                $totalWeight += $groupWeight;
             }
-
-            $groupVolume += $volumePerItem * $detail->quantity;
-            $groupWeight += $product->weight * $detail->quantity;
         }
 
-        if ($validGroup) {
-            $totalVolume += $groupVolume;
-            $totalWeight += $groupWeight;
-        }
-    }
+        $totalVolume = $totalVolume / 1000000;
 
-    $totalVolume = $totalVolume / 1000000;
+        $reducedVolumeCount = count($trimmedProducts);
+        $reducedVolumeAmount = 0;
 
-    // Zaoszczędzona objętość
-    $reducedVolumeCount = count($trimmedProducts);
-    $reducedVolumeAmount = 0;
-
-    foreach ($trimmedProducts as $item) {
-        $full = $item['original']['x'] * $item['original']['y'] * $item['original']['z'];
-        $cut = $item['trimmed']['x'] * $item['trimmed']['y'] * $item['trimmed']['z'];
-        $reducedVolumeAmount += ($full - $cut); // * ilość można dodać, jeśli potrzebne
-    }
-
-    $reducedVolumeAmount = round($reducedVolumeAmount / 1000000, 4);
-
-    // Sortowanie opakowań
-   $sortedUnits = $storeunits->filter(function ($unit) {
-        $type = $unit->storeunittype;
-        return $type && $type->size_x && $type->size_y && $type->size_z && $type->loadwgt;
-    })->sortBy(function ($unit) {
-        $type = $unit->storeunittype;
-        return $type->size_x * $type->size_y * $type->size_z;
-    });
-
-    // Dobór opakowań
-    $usedUnits = [];
-    $remainingVolume = $totalVolume;
-    $remainingWeight = $totalWeight;
-
-    foreach ($sortedUnits as $unit) {
-    $type = $unit->storeunittype;
-    $unitVolume = ($type->size_x * $type->size_y * $type->size_z) / 1000000;
-    $unitMaxWeight = $type->loadwgt;
-
-    if ($unitVolume >= $totalVolume && $unitMaxWeight >= $totalWeight) {
-        $usedUnits[] = $unit;
-        $remainingVolume = 0;
-        $remainingWeight = 0;
-        break;
-    }
-}
-
-    $noUnitsAvailable = ($remainingVolume > 0 || $remainingWeight > 0);
-
-    $unitsUsedCount = count($usedUnits);
-    $usedVolumeTotal = 0;
-    $usedWeightCapacityTotal = 0;
-
-    foreach ($usedUnits as $unit) {
-        $type = $unit->storeunittype;
-        $usedVolumeTotal += ($type->size_x * $type->size_y * $type->size_z) / 1000000;
-        $usedWeightCapacityTotal += $type->loadwgt;
-    }
-
-    $volumeFillPercent = $usedVolumeTotal > 0 ? round(($totalVolume / $usedVolumeTotal) * 100, 1) : 0;
-    $weightFillPercent = $usedWeightCapacityTotal > 0 ? round(($totalWeight / $usedWeightCapacityTotal) * 100, 1) : 0;
-
-    $totalItems = $orderdetails->sum('quantity');
-    $uniqueProducts = $orderdetails->count();
-
-    $fragilityStats = [
-        'twardy' => 0,
-        'miekki' => 0,
-        'kruchy' => 0,
-    ];
-
-    foreach ($orderdetails as $detail) {
-        $fragility = strtolower($detail->product->fragility ?? 'inne');
-        if (isset($fragilityStats[$fragility])) {
-            $fragilityStats[$fragility] += $detail->quantity;
-        }
-    }
-
-    // Szacowana liczba palet
-    $bestUnit = null;
-$minCount = PHP_INT_MAX;
-$paletBasis = '';
-$volumeBasedCount = 0;
-$weightBasedCount = 0;
-$paletCount = 0;
-
-foreach ($sortedUnits as $unit) {
-    $type = $unit->storeunittype;
-    $unitVolume = ($type->size_x * $type->size_y * $type->size_z) / 1000000;
-    $unitWeight = $type->loadwgt;
-
-    if ($unitVolume <= 0 || $unitWeight <= 0) continue;
-
-    $volCount = ceil($totalVolume / $unitVolume);
-    $wgtCount = ceil($totalWeight / $unitWeight);
-    $needed = max($volCount, $wgtCount);
-
-    if ($needed < $minCount) {
-        $minCount = $needed;
-        $bestUnit = $type;
-
-        if ($volCount > $wgtCount) {
-            $paletBasis = 'objętości';
-        } elseif ($wgtCount > $volCount) {
-            $paletBasis = 'wagi';
-        } else {
-            $paletBasis = 'zarówno objętości, jak i wagi';
+        foreach ($trimmedProducts as $item) {
+            $full = $item['original']['x'] * $item['original']['y'] * $item['original']['z'];
+            $cut = $item['trimmed']['x'] * $item['trimmed']['y'] * $item['trimmed']['z'];
+            $reducedVolumeAmount += ($full - $cut);
         }
 
-        $volumeBasedCount = $volCount;
-        $weightBasedCount = $wgtCount;
-    }
-}
+        $reducedVolumeAmount = round($reducedVolumeAmount / 1000000, 4);
 
-$paletCount = $minCount;
+        // --- ALGORYTM OBJĘTOŚCIOWY ---
+        $volumeUnits = $this->pickUnitsBy('volume', $storeunits, $totalVolume, $totalWeight);
+        $volCount = count($volumeUnits);
+        $volVolume = $volumeUnits->map(fn($u) => ($u->storeunittype->size_x * $u->storeunittype->size_y * $u->storeunittype->size_z) / 1000000)->sum();
+        $volWeight = $volumeUnits->sum(fn($u) => $u->storeunittype->loadwgt);
 
+        // --- ALGORYTM WAGOWY ---
+        $weightUnits = $this->pickUnitsBy('weight', $storeunits, $totalVolume, $totalWeight);
+        $wgtCount = count($weightUnits);
+        $wgtVolume = $weightUnits->map(fn($u) => ($u->storeunittype->size_x * $u->storeunittype->size_y * $u->storeunittype->size_z) / 1000000)->sum();
+        $wgtWeight = $weightUnits->sum(fn($u) => $u->storeunittype->loadwgt);
 
-    //zapis do bazy
-    // Usuń poprzednie dane kompletacji (jeśli istnieją)
-    OrderPickAuto::where('order_id', $order->id)->delete();
+        $usedUnits = ($volCount <= $wgtCount) ? $volumeUnits : $weightUnits;
+        $noUnitsAvailable = (count($usedUnits) === 0);
 
-    // Zapisz nowe dane kompletacji
-    foreach ($usedUnits as $unit) {
-        $type = $unit->storeunittype;
+        $totalItems = $orderdetails->sum('quantity');
+        $uniqueProducts = $orderdetails->count();
 
-        $auto = OrderPickAuto::create([
-            'order_id' => $order->id,
-            'store_unit_id' => $unit->id,
-            'used_volume' => ($type->size_x * $type->size_y * $type->size_z) / 1000000,
-            'used_weight' => $type->loadwgt,
-        ]);
+        $fragilityStats = ['twardy' => 0, 'miekki' => 0, 'kruchy' => 0];
+        foreach ($orderdetails as $detail) {
+            $fragility = strtolower($detail->product->fragility ?? 'inne');
+            if (isset($fragilityStats[$fragility])) {
+                $fragilityStats[$fragility] += $detail->quantity;
+            }
+        }
 
-        // pobieramy produkty przypisane do danego zamówienia
-        foreach ($order->order_details as $detail) {
-            DB::table('order_pick_auto_product')->insert([
-                'order_pick_auto_id' => $auto->id,
-                'product_id' => $detail->product_id,
+        OrderPickAuto::where('order_id', $order->id)->delete();
+
+        foreach ($usedUnits as $unit) {
+            $type = $unit->storeunittype;
+
+            $auto = OrderPickAuto::create([
+                'order_id' => $order->id,
+                'store_unit_id' => $unit->id,
+                'used_volume' => ($type->size_x * $type->size_y * $type->size_z) / 1000000,
+                'used_weight' => $type->loadwgt,
             ]);
+
+            foreach ($order->order_details as $detail) {
+                DB::table('order_pick_auto_product')->insert([
+                    'order_pick_auto_id' => $auto->id,
+                    'product_id' => $detail->product_id,
+                ]);
+            }
+        }
+
+        return view('orderdetail.autopick', compact(
+            'order',
+            'orderdetails',
+            'totalVolume',
+            'totalWeight',
+            'storeunits',
+            'usedUnits',
+            'volumeUnits',
+            'weightUnits',
+            'volCount',
+            'wgtCount',
+            'volVolume',
+            'wgtVolume',
+            'volWeight',
+            'wgtWeight',
+            'totalItems',
+            'uniqueProducts',
+            'fragilityStats',
+            'missingProducts',
+            'heaviestDetail',
+            'reducedVolumeCount',
+            'reducedVolumeAmount',
+            'noUnitsAvailable',
+            'trimmedProducts'
+        ));
+    }
+
+private function pickUnitsBy($criterion, $storeunits, $totalVolume, $totalWeight)
+{
+    $unitsByType = $storeunits->groupBy('storeunittype_id');
+    $bestTypeId = null;
+    $bestCount = PHP_INT_MAX;
+
+    foreach ($unitsByType as $typeId => $units) {
+        $type = $units->first()->storeunittype;
+
+        if (! $type || ! $type->size_x || ! $type->size_y || ! $type->size_z || ! $type->loadwgt) {
+            continue;
+        }
+
+        $unitCapacity = ($criterion === 'volume')
+            ? ($type->size_x * $type->size_y * $type->size_z) / 1000000
+            : $type->loadwgt;
+
+        if ($unitCapacity <= 0) continue;
+
+        $requiredCount = ceil((($criterion === 'volume') ? $totalVolume : $totalWeight) / $unitCapacity);
+
+        // Jeśli liczba dostępnych jednostek danego typu jest mniejsza niż potrzebna, pomijamy
+        if ($units->count() < $requiredCount) continue;
+
+        if ($requiredCount < $bestCount) {
+            $bestCount = $requiredCount;
+            $bestTypeId = $typeId;
         }
     }
 
+    if (! $bestTypeId) return [];
 
+    $bestUnits = $unitsByType[$bestTypeId]->take($bestCount)->values();
 
-
-    return view('orderdetail.autopick', compact(
-        'order',
-        'orderdetails',
-        'totalVolume',
-        'totalWeight',
-        'storeunits',
-        'usedUnits',
-        'unitsUsedCount',
-        'usedVolumeTotal',
-        'usedWeightCapacityTotal',
-        'volumeFillPercent',
-        'weightFillPercent',
-        'totalItems',
-        'uniqueProducts',
-        'fragilityStats',
-        'volumeBasedCount',
-        'weightBasedCount',
-        'paletCount',
-        'paletBasis',
-        'missingProducts',
-        'heaviestDetail',
-        'reducedVolumeCount',
-        'reducedVolumeAmount',
-        'noUnitsAvailable',
-        'trimmedProducts'
-    ));
+    return $bestUnits;
 }
 
 
-public function confirm(Order $order)
-{
-    OrderPickAuto::where('order_id', $order->id)->update(['confirmed' => true]);
-    //dd(OrderPickAuto::where('order_id', $order->id)->get());
-    return redirect()->route('orders.index')->with('success', 'Kompletacja została zatwierdzona.');
-}
+
+
+
+
+
+
+
+
+//public function autopick($id)
+// {
+//     $order = Order::findOrFail($id);
+//     $order->status_id = 503;
+//     $order->save();
+
+//     $orderdetails = $order->order_details()
+//         ->with('product')
+//         ->get()
+//         ->sortByDesc(fn($d) => ($d->product->weight ?? 0) * $d->quantity)
+//         ->values();
+
+//     $heaviestDetail = $orderdetails->first();
+
+//     // Opakowania dostępne
+//     $storeunits = StoreUnit::with('storeunittype')
+//         ->whereNotNull('ean')
+//         ->whereIn('status_id', [101, 102])
+//         ->get();
+
+//     $maxUnitSize = [
+//         'x' => $storeunits->max(fn($u) => $u->storeunittype->size_x ?? 0),
+//         'y' => $storeunits->max(fn($u) => $u->storeunittype->size_y ?? 0),
+//         'z' => $storeunits->max(fn($u) => $u->storeunittype->size_z ?? 0),
+//     ];
+
+//     $totalVolume = 0;
+//     $totalWeight = 0;
+//     $missingProducts = [];
+//     $trimmedProducts = [];
+
+//     // Grupuj po kompletach lub pojedynczych produktach
+//     $groupedOrderDetails = $orderdetails->groupBy(fn($item) => $item->product_set_id ?? 'product_' . $item->id);
+
+//     foreach ($groupedOrderDetails as $group) {
+//         $groupVolume = 0;
+//         $groupWeight = 0;
+//         $validGroup = true;
+
+//         foreach ($group as $detail) {
+//             $product = $detail->product;
+
+//             $hasAllData = $product && $product->size_x && $product->size_y && $product->size_z && $product->weight;
+
+//             if (! $hasAllData) {
+//                 $missingProducts[] = $detail;
+//                 $validGroup = false;
+//                 continue;
+//             }
+
+//             $volumePerItem = $product->size_x * $product->size_y * $product->size_z;
+
+//             if ($product->can_overhang == 1) {
+//                 $cut_x = min($product->size_x, $maxUnitSize['x']);
+//                 $cut_y = min($product->size_y, $maxUnitSize['y']);
+//                 $cut_z = min($product->size_z, $maxUnitSize['z']);
+//                 $volumePerItem = $cut_x * $cut_y * $cut_z;
+
+//                 $trimmedProducts[] = [
+//                     'code' => $detail->prod_code,
+//                     'desc' => $product->prod_desc ?? '',
+//                     'original' => [
+//                         'x' => $product->size_x,
+//                         'y' => $product->size_y,
+//                         'z' => $product->size_z,
+//                     ],
+//                     'trimmed' => [
+//                         'x' => $cut_x,
+//                         'y' => $cut_y,
+//                         'z' => $cut_z,
+//                     ]
+//                 ];
+//             }
+
+//             $groupVolume += $volumePerItem * $detail->quantity;
+//             $groupWeight += $product->weight * $detail->quantity;
+//         }
+
+//         if ($validGroup) {
+//             $totalVolume += $groupVolume;
+//             $totalWeight += $groupWeight;
+//         }
+//     }
+
+//     $totalVolume = $totalVolume / 1000000;
+
+//     // Zaoszczędzona objętość
+//     $reducedVolumeCount = count($trimmedProducts);
+//     $reducedVolumeAmount = 0;
+
+//     foreach ($trimmedProducts as $item) {
+//         $full = $item['original']['x'] * $item['original']['y'] * $item['original']['z'];
+//         $cut = $item['trimmed']['x'] * $item['trimmed']['y'] * $item['trimmed']['z'];
+//         $reducedVolumeAmount += ($full - $cut); // * ilość można dodać, jeśli potrzebne
+//     }
+
+//     $reducedVolumeAmount = round($reducedVolumeAmount / 1000000, 4);
+
+//     // Sortowanie opakowań
+//    $sortedUnits = $storeunits->filter(function ($unit) {
+//         $type = $unit->storeunittype;
+//         return $type && $type->size_x && $type->size_y && $type->size_z && $type->loadwgt;
+//     })->sortBy(function ($unit) {
+//         $type = $unit->storeunittype;
+//         return $type->size_x * $type->size_y * $type->size_z;
+//     });
+
+//     // Dobór opakowań
+//     $usedUnits = [];
+//     $remainingVolume = $totalVolume;
+//     $remainingWeight = $totalWeight;
+
+//     foreach ($sortedUnits as $unit) {
+//     $type = $unit->storeunittype;
+//     $unitVolume = ($type->size_x * $type->size_y * $type->size_z) / 1000000;
+//     $unitMaxWeight = $type->loadwgt;
+
+//     if ($unitVolume >= $totalVolume && $unitMaxWeight >= $totalWeight) {
+//         $usedUnits[] = $unit;
+//         $remainingVolume = 0;
+//         $remainingWeight = 0;
+//         break;
+//     }
+// }
+
+//     $noUnitsAvailable = ($remainingVolume > 0 || $remainingWeight > 0);
+
+//     $unitsUsedCount = count($usedUnits);
+//     $usedVolumeTotal = 0;
+//     $usedWeightCapacityTotal = 0;
+
+//     foreach ($usedUnits as $unit) {
+//         $type = $unit->storeunittype;
+//         $usedVolumeTotal += ($type->size_x * $type->size_y * $type->size_z) / 1000000;
+//         $usedWeightCapacityTotal += $type->loadwgt;
+//     }
+
+//     $volumeFillPercent = $usedVolumeTotal > 0 ? round(($totalVolume / $usedVolumeTotal) * 100, 1) : 0;
+//     $weightFillPercent = $usedWeightCapacityTotal > 0 ? round(($totalWeight / $usedWeightCapacityTotal) * 100, 1) : 0;
+
+//     $totalItems = $orderdetails->sum('quantity');
+//     $uniqueProducts = $orderdetails->count();
+
+//     $fragilityStats = [
+//         'twardy' => 0,
+//         'miekki' => 0,
+//         'kruchy' => 0,
+//     ];
+
+//     foreach ($orderdetails as $detail) {
+//         $fragility = strtolower($detail->product->fragility ?? 'inne');
+//         if (isset($fragilityStats[$fragility])) {
+//             $fragilityStats[$fragility] += $detail->quantity;
+//         }
+//     }
+
+//     // Szacowana liczba palet
+//     $bestUnit = null;
+// $minCount = PHP_INT_MAX;
+// $paletBasis = '';
+// $volumeBasedCount = 0;
+// $weightBasedCount = 0;
+// $paletCount = 0;
+
+// foreach ($sortedUnits as $unit) {
+//     $type = $unit->storeunittype;
+//     $unitVolume = ($type->size_x * $type->size_y * $type->size_z) / 1000000;
+//     $unitWeight = $type->loadwgt;
+
+//     if ($unitVolume <= 0 || $unitWeight <= 0) continue;
+
+//     $volCount = ceil($totalVolume / $unitVolume);
+//     $wgtCount = ceil($totalWeight / $unitWeight);
+//     $needed = max($volCount, $wgtCount);
+
+//     if ($needed < $minCount) {
+//         $minCount = $needed;
+//         $bestUnit = $type;
+
+//         if ($volCount > $wgtCount) {
+//             $paletBasis = 'objętości';
+//         } elseif ($wgtCount > $volCount) {
+//             $paletBasis = 'wagi';
+//         } else {
+//             $paletBasis = 'zarówno objętości, jak i wagi';
+//         }
+
+//         $volumeBasedCount = $volCount;
+//         $weightBasedCount = $wgtCount;
+//     }
+// }
+
+// $paletCount = $minCount;
+
+
+//     //zapis do bazy
+//     // Usuń poprzednie dane kompletacji (jeśli istnieją)
+//     OrderPickAuto::where('order_id', $order->id)->delete();
+
+//     // Zapisz nowe dane kompletacji
+//     foreach ($usedUnits as $unit) {
+//         $type = $unit->storeunittype;
+
+//         $auto = OrderPickAuto::create([
+//             'order_id' => $order->id,
+//             'store_unit_id' => $unit->id,
+//             'used_volume' => ($type->size_x * $type->size_y * $type->size_z) / 1000000,
+//             'used_weight' => $type->loadwgt,
+//         ]);
+
+//         // pobieramy produkty przypisane do danego zamówienia
+//         foreach ($order->order_details as $detail) {
+//             DB::table('order_pick_auto_product')->insert([
+//                 'order_pick_auto_id' => $auto->id,
+//                 'product_id' => $detail->product_id,
+//             ]);
+//         }
+//     }
+
+
+
+
+//     return view('orderdetail.autopick', compact(
+//         'order',
+//         'orderdetails',
+//         'totalVolume',
+//         'totalWeight',
+//         'storeunits',
+//         'usedUnits',
+//         'unitsUsedCount',
+//         'usedVolumeTotal',
+//         'usedWeightCapacityTotal',
+//         'volumeFillPercent',
+//         'weightFillPercent',
+//         'totalItems',
+//         'uniqueProducts',
+//         'fragilityStats',
+//         'volumeBasedCount',
+//         'weightBasedCount',
+//         'paletCount',
+//         'paletBasis',
+//         'missingProducts',
+//         'heaviestDetail',
+//         'reducedVolumeCount',
+//         'reducedVolumeAmount',
+//         'noUnitsAvailable',
+//         'trimmedProducts'
+//     ));
+// }
+
+
+// public function confirm(Order $order)
+// {
+//     OrderPickAuto::where('order_id', $order->id)->update(['confirmed' => true]);
+//     //dd(OrderPickAuto::where('order_id', $order->id)->get());
+//     return redirect()->route('orders.index')->with('success', 'Kompletacja została zatwierdzona.');
+// }
 
 public function indexConfirmed()
 {

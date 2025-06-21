@@ -133,7 +133,7 @@
 </div>
 
 <div class="alert alert-info mt-4">
-    <h5><strong>📦 Dane zamówienia</strong></h5>
+    <h5><strong>Dane zamówienia</strong></h5>
     <ul>
         <li><strong>Liczba pozycji:</strong> {{ $uniqueProducts }}</li>
         <li><strong>Łączna ilość sztuk:</strong> {{ $totalItems }}</li>
@@ -151,9 +151,17 @@
     <div class="col-md-6">
         <div class="card border-primary mb-4">
             <div class="card-header bg-primary text-white">
-                <h5 class="mb-0">📦 Kompletacja objętościowa</h5>
+                <h5 class="mb-0">Kompletacja objętościowa</h5>
             </div>
             <div class="card-body">
+                <ul class="mb-0">
+                    <li><strong>Użyte opakowania:</strong> {{ $unitsUsedCount }}</li>
+                    <li><strong>Całkowita pojemność:</strong> {{ number_format($volumeCapacity, 3, ',', ' ') }} m³</li>
+                    <li><strong>Zużyta objętość:</strong> {{ number_format($volumeUsed, 3, ',', ' ') }} m³</li>
+                    <li><strong>Wypełnienie objętościowe:</strong> {{ $volumeFillPercent }}%</li>
+                    <li><strong>Wypełnienie wagowe:</strong> {{ $weightFillPercent }}%</li>
+                </ul>
+                <hr>
                 <div class="table-responsive-sm mb-3">
                     <table class="table table-striped table-hover table-sm">
                         <thead>
@@ -191,14 +199,6 @@
                         </tbody>
                     </table>
                 </div>
-
-                <ul class="mb-0">
-                    <li><strong>Użyte opakowania:</strong> {{ $unitsUsedCount }}</li>
-                    <li><strong>Całkowita pojemność:</strong> {{ number_format($volumeCapacity, 3, ',', ' ') }} m³</li>
-                    <li><strong>Zużyta objętość:</strong> {{ number_format($volumeUsed, 3, ',', ' ') }} m³</li>
-                    <li><strong>Wypełnienie objętościowe:</strong> {{ $volumeFillPercent }}%</li>
-                    <li><strong>Wypełnienie wagowe:</strong> {{ $weightFillPercent }}%</li>
-                </ul>
             </div>
         </div>
     </div>
@@ -207,9 +207,38 @@
     <div class="col-md-6">
         <div class="card border-success mb-4">
             <div class="card-header bg-success text-white">
-                <h5 class="mb-0">⚖️ Kompletacja wagowa</h5>
+                <h5 class="mb-0">Kompletacja wagowa</h5>
             </div>
             <div class="card-body">
+                @php
+                    $weightUsedW = array_sum(array_column($weightAlgorithm, 'weight_used'));
+                    $volumeUsedW = array_sum(array_column($weightAlgorithm, 'volume_used')) / 1000000;
+                    $unitsUsedWeight = collect();
+                    $weightCapacityW = 0;
+                    $volumeCapacityW = 0;
+                    foreach ($weightAlgorithm as $entry) {
+                        $unit = $storeunits->firstWhere('id', $entry['storeunit_id']);
+                        if ($unit && $unit->storeunittype) {
+                            $unitsUsedWeight->push($unit);
+                            $t = $unit->storeunittype;
+                            $volumeCapacityW += ($t->size_x * $t->size_y * $t->size_z) / 1000000;
+                            $weightCapacityW += $t->loadwgt ?? 0;
+                        }
+                    }
+                    $weightFillPercentW = $weightCapacityW > 0 ? round(($weightUsedW / $weightCapacityW) * 100, 1) : 0;
+                    $volumeFillPercentW = $volumeCapacityW > 0 ? round(($volumeUsedW / $volumeCapacityW) * 100, 1) : 0;
+                @endphp
+
+                <ul class="mb-0">
+                    <li><strong>Użyte opakowania:</strong> {{ count($unitsUsedWeight) }}</li>
+                    <li><strong>Całkowita pojemność:</strong> {{ number_format($volumeCapacityW, 3, ',', ' ') }} m³</li>
+                    <li><strong>Zużyta objętość:</strong> {{ number_format($volumeUsedW, 3, ',', ' ') }} m³</li>
+                    <li><strong>Wypełnienie objętościowe:</strong> {{ $volumeFillPercentW }}%</li>
+                    <li><strong>Całkowita nośność:</strong> {{ number_format($weightCapacityW, 2, ',', ' ') }} kg</li>
+                    <li><strong>Zużyta waga:</strong> {{ number_format($weightUsedW, 2, ',', ' ') }} kg</li>
+                    <li><strong>Wypełnienie wagowe:</strong> {{ $weightFillPercentW }}%</li>
+                </ul>
+                <hr>
                 <div class="table-responsive-sm mb-3">
                     <table class="table table-striped table-hover table-sm">
                         <thead>
@@ -248,43 +277,56 @@
                     </table>
                 </div>
 
-                @php
-                    $weightUsedW = array_sum(array_column($weightAlgorithm, 'weight_used'));
-                    $volumeUsedW = array_sum(array_column($weightAlgorithm, 'volume_used')) / 1000000;
-                    $unitsUsedWeight = collect();
-                    $weightCapacityW = 0;
-                    $volumeCapacityW = 0;
-                    foreach ($weightAlgorithm as $entry) {
-                        $unit = $storeunits->firstWhere('id', $entry['storeunit_id']);
-                        if ($unit && $unit->storeunittype) {
-                            $unitsUsedWeight->push($unit);
-                            $t = $unit->storeunittype;
-                            $volumeCapacityW += ($t->size_x * $t->size_y * $t->size_z) / 1000000;
-                            $weightCapacityW += $t->loadwgt ?? 0;
-                        }
-                    }
-                    $weightFillPercentW = $weightCapacityW > 0 ? round(($weightUsedW / $weightCapacityW) * 100, 1) : 0;
-                    $volumeFillPercentW = $volumeCapacityW > 0 ? round(($volumeUsedW / $volumeCapacityW) * 100, 1) : 0;
-                @endphp
 
-                <ul class="mb-0">
-                    <li><strong>Użyte opakowania:</strong> {{ count($unitsUsedWeight) }}</li>
-                    <li><strong>Całkowita pojemność:</strong> {{ number_format($volumeCapacityW, 3, ',', ' ') }} m³</li>
-                    <li><strong>Zużyta objętość:</strong> {{ number_format($volumeUsedW, 3, ',', ' ') }} m³</li>
-                    <li><strong>Wypełnienie objętościowe:</strong> {{ $volumeFillPercentW }}%</li>
-                    <li><strong>Całkowita nośność:</strong> {{ number_format($weightCapacityW, 2, ',', ' ') }} kg</li>
-                    <li><strong>Zużyta waga:</strong> {{ number_format($weightUsedW, 2, ',', ' ') }} kg</li>
-                    <li><strong>Wypełnienie wagowe:</strong> {{ $weightFillPercentW }}%</li>
-                </ul>
             </div>
         </div>
     </div>
 </div>
 
-<div class="card mt-4">
-    <div class="card-header">
-        📊 <strong>Porównanie wypełnienia opakowań</strong>
+@if ($reducedVolumeCount > 0)
+    <div class="alert alert-danger mt-4">
+            <h5><strong>Produkty przycięte (ze względu na wystawanie poza opakowanie)</strong></h5>
+
+        <div class="card-body">
+            <p>Poniższe produkty przekraczały wymiary dostępnych opakowań – ich wymiary zostały dopasowane do maksymalnych dopuszczalnych wartości w celu poprawnego przeliczenia objętości.</p>
+
+            <ul class="mb-4">
+                <li><strong>Liczba produktów z wystawaniem:</strong> {{ $reducedVolumeCount }}</li>
+                <li><strong>Zaoszczędzona objętość:</strong> {{ number_format($reducedVolumeAmount, 4) }} m³</li>
+            </ul>
+
+            @if (count($trimmedProducts) > 0)
+                <div class="table-responsive-sm">
+                    <table class="table table-striped table-hover table-sm">
+                        <thead>
+                            <tr>
+                                <th>Produkt</th>
+                                <th>Wymiary oryginalne (cm)</th>
+                                <th>Wymiary po przycięciu (cm)</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach ($trimmedProducts as $trim)
+                                <tr>
+                                    <td>{{ $trim['code'] }}</td>
+                                    <td>{{ $trim['original']['x'] }} × {{ $trim['original']['y'] }} × {{ $trim['original']['z'] }}</td>
+                                    <td>{{ $trim['trimmed']['x'] }} × {{ $trim['trimmed']['y'] }} × {{ $trim['trimmed']['z'] }}</td>
+                                </tr>
+                            @endforeach
+                        </tbody>
+                    </table>
+                </div>
+            @endif
+        </div>
     </div>
+@endif
+
+
+
+<div class="alert alert-warning mt-4">
+
+        <h5><strong>Porównanie wypełnienia opakowań</strong></h5>
+
     <div class="card-body">
         <canvas id="packingChart" width="400" height="180"></canvas>
     </div>

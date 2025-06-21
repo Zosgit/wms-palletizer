@@ -214,21 +214,77 @@ public function autopick($id)
     $volumeAlgorithm = $this->runVolumePackingAlgorithm($orderdetails, $storeunits);
     $weightAlgorithm = $this->runWeightPackingAlgorithm($orderdetails, $storeunits);
 
+// 1. Maksymalne wymiary dostępnych opakowań
+$maxUnitSize = [
+    'x' => 0,
+    'y' => 0,
+    'z' => 0,
+];
+
+foreach ($storeunits as $unit) {
+    $type = $unit->storeunittype;
+    if ($type) {
+        $maxUnitSize['x'] = max($maxUnitSize['x'], $type->size_x);
+        $maxUnitSize['y'] = max($maxUnitSize['y'], $type->size_y);
+        $maxUnitSize['z'] = max($maxUnitSize['z'], $type->size_z);
+    }
+}
+
     // 🔢 Statystyki zamówienia
     $totalItems = $orderdetails->sum('quantity');
     $uniqueProducts = $orderdetails->pluck('product_id')->unique()->count();
 
     $totalVolume = 0;
     $totalWeight = 0;
-    foreach ($orderdetails as $detail) {
-        $product = $detail->product;
-        if ($product && $product->size_x && $product->size_y && $product->size_z && $product->weight) {
-            $volume = $product->size_x * $product->size_y * $product->size_z * $detail->quantity;
-            $totalVolume += $volume;
-            $totalWeight += $product->weight * $detail->quantity;
+    $trimmedProducts = [];
+
+
+foreach ($orderdetails as $detail) {
+    $product = $detail->product;
+
+    if ($product && $product->size_x && $product->size_y && $product->size_z && $product->weight) {
+        $originalVolume = $product->size_x * $product->size_y * $product->size_z * $detail->quantity;
+        $totalVolume += $originalVolume;
+        $totalWeight += $product->weight * $detail->quantity;
+
+        if ($product->can_overhang == 1 &&
+            ($product->size_x > $maxUnitSize['x'] ||
+             $product->size_y > $maxUnitSize['y'] ||
+             $product->size_z > $maxUnitSize['z'])) {
+
+            $cut_x = min($product->size_x, $maxUnitSize['x']);
+            $cut_y = min($product->size_y, $maxUnitSize['y']);
+            $cut_z = min($product->size_z, $maxUnitSize['z']);
+
+            $trimmedProducts[] = [
+                'code' => $detail->prod_code,
+                'desc' => $product->prod_desc ?? '',
+                'original' => [
+                    'x' => $product->size_x,
+                    'y' => $product->size_y,
+                    'z' => $product->size_z,
+                ],
+                'trimmed' => [
+                    'x' => $cut_x,
+                    'y' => $cut_y,
+                    'z' => $cut_z,
+                ]
+            ];
         }
     }
-    $totalVolume = $totalVolume / 1000000; // cm³ -> m³
+}
+$totalVolume = $totalVolume / 1_000_000; // cm³ → m³
+
+// 3. Redukcja objętości przez przycięcie
+$reducedVolumeCount = count($trimmedProducts);
+$reducedVolumeAmount = 0;
+
+foreach ($trimmedProducts as $item) {
+    $full = $item['original']['x'] * $item['original']['y'] * $item['original']['z'];
+    $cut  = $item['trimmed']['x'] * $item['trimmed']['y'] * $item['trimmed']['z'];
+    $reducedVolumeAmount += ($full - $cut);
+}
+$reducedVolumeAmount = round($reducedVolumeAmount / 1_000_000, 4); // cm³ → m³
 
     // 📦 Statystyki opakowań
     $volumeUsed = array_sum(array_column($volumeAlgorithm, 'volume_used')) / 1000000;
@@ -259,7 +315,6 @@ public function autopick($id)
             : 0;
     });
 
-
     return view('orderdetail.autopick', compact(
         'order',
         'orderdetails',
@@ -279,10 +334,12 @@ public function autopick($id)
         'usedUnits',
         'volumeFillPercent',
         'weightFillPercent',
-        'usedVolumeTotal'
+        'usedVolumeTotal',
+        'reducedVolumeAmount',
+        'reducedVolumeCount',
+        'trimmedProducts'
     ));
 }
-
 
 private function runVolumePackingAlgorithm($orderdetails, $storeunits)
 {
@@ -305,6 +362,7 @@ private function runVolumePackingAlgorithm($orderdetails, $storeunits)
                       ($unit->storeunittype->size_y ?? 0) *
                       ($unit->storeunittype->size_z ?? 0);
         $unitWeightLimit = $unit->storeunittype->loadwgt ?? INF;
+        $maxX = $unit->storeunittype->size_x ?? 0;
 
         $packed = [];
         $usedVolume = 0;
@@ -314,12 +372,20 @@ private function runVolumePackingAlgorithm($orderdetails, $storeunits)
             $product = $item->detail->product;
             $qty = $item->remaining_qty;
 
-            $productVolume = ($product->size_x ?? 0) * ($product->size_y ?? 0) * ($product->size_z ?? 0);
+            $size_x = $product->size_x ?? 0;
+            $size_y = $product->size_y ?? 0;
+            $size_z = $product->size_z ?? 0;
             $productWeight = $product->weight ?? 0;
 
-            if ($productVolume == 0 || $productWeight == 0) {
+            if ($product->can_overhang === 'tak') {
+                $size_x = min($size_x, $maxX);
+            }
+
+            if ($size_x == 0 || $size_y == 0 || $size_z == 0 || $productWeight == 0) {
                 continue;
             }
+
+            $productVolume = $size_x * $size_y * $size_z;
 
             $maxQty = min(
                 floor(($unitVolume - $usedVolume) / $productVolume),
@@ -419,6 +485,7 @@ private function runWeightPackingAlgorithm($orderdetails, $storeunits)
 
     return $result;
 }
+
 
 
 

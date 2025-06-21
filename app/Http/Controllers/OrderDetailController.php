@@ -204,6 +204,8 @@ public function autopick($id)
         ->sortByDesc(fn($d) => ($d->product->weight ?? 0) * $d->quantity)
         ->values();
 
+    $heaviestDetail = $orderdetails->first();
+
     $storeunits = StoreUnit::with('storeunittype')
         ->whereNotNull('ean')
         ->whereIn('status_id', [101, 102])
@@ -243,16 +245,25 @@ public function autopick($id)
             $usedUnits->push($unit);
             $t = $unit->storeunittype;
             $volumeCapacity += ($t->size_x * $t->size_y * $t->size_z) / 1000000;
-            $weightCapacity += $t->max_weight ?? 0;
+            $weightCapacity += $t->loadwgt ?? 0;
         }
     }
 
     $volumeFillPercent = $volumeCapacity > 0 ? round(($volumeUsed / $volumeCapacity) * 100, 1) : 0;
     $weightFillPercent = $weightCapacity > 0 ? round(($weightUsed / $weightCapacity) * 100, 1) : 0;
 
+    $usedVolumeTotal = $usedUnits->sum(function ($unit) {
+        $t = $unit->storeunittype;
+        return $t && $t->size_x && $t->size_y && $t->size_z
+            ? ($t->size_x * $t->size_y * $t->size_z) / 1000000
+            : 0;
+    });
+
+
     return view('orderdetail.autopick', compact(
         'order',
         'orderdetails',
+        'heaviestDetail',
         'volumeAlgorithm',
         'weightAlgorithm',
         'storeunits',
@@ -267,7 +278,8 @@ public function autopick($id)
         'unitsUsedCount',
         'usedUnits',
         'volumeFillPercent',
-        'weightFillPercent'
+        'weightFillPercent',
+        'usedVolumeTotal'
     ));
 }
 

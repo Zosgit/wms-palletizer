@@ -18,8 +18,17 @@
             <tbody>
                 @foreach($orders as $entry)
                     <tr>
-                        <td>{{ $entry->order_id }}</td>
-                        <td>{{ \Carbon\Carbon::parse($entry->created_at)->format('Y-m-d H:i') }}</td>
+                        <td>{{ $entry->order->order_nr ?? 'Brak numeru'  }}</td>
+                        <td>
+                            {{
+                                optional(
+                                    \App\Models\OrderPickAuto::where('order_id', $entry->order_id)
+                                        ->where('confirmed', true)
+                                        ->orderByDesc('created_at')
+                                        ->first()
+                                )->created_at?->format('Y-m-d H:i') ?? 'Brak daty'
+                            }}
+                        </td>
                         <td>
                             <a href="{{ route('orderpickauto.show', $entry->order_id) }}" class="btn btn-primary btn-sm">
                                 Pokaż szczegóły

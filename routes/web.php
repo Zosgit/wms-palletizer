@@ -57,6 +57,9 @@ Route::middleware('auth')->group(function () {
     Route::post('/orderpick/{order}/confirm', [App\Http\Controllers\OrderDetailController::class, 'confirm'])->name('orders.confirm');
     Route::get('/orderpickauto', [App\Http\Controllers\OrderPickAutoController::class, 'index'])->name('orderpickauto.index');
     Route::get('/orderpickauto/{order}', [App\Http\Controllers\OrderPickAutoController::class, 'show'])->name('orderpickauto.show');
+    Route::post('/order/{order}/store-confirmed-packing', [App\Http\Controllers\OrderDetailController::class, 'storeConfirmedPacking'])->name('orderdetail.storeConfirmedPacking');
+
+
 
     // pick
     Route::get('/picks', [App\Http\Controllers\PickController::class,'index'])->name('pick.index');

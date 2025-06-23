@@ -15,11 +15,12 @@ class OrderPickAuto extends Model
         'used_volume',
         'used_weight',
         'confirmed',
+        'algorithm_type',
     ];
 
     public function order()
     {
-        return $this->belongsTo(Order::class);
+        return $this->belongsTo(Order::class, 'order_id');
     }
 
     public function storeUnit()
@@ -32,5 +33,5 @@ class OrderPickAuto extends Model
     return $this->belongsToMany(Product::class, 'order_pick_auto_product', 'order_pick_auto_id', 'product_id');
 }
 
-
+public $timestamps = true;
 }

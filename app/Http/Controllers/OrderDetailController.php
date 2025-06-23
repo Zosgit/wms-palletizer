@@ -11,6 +11,7 @@ use App\Models\Product;
 use App\Models\StoreUnit;
 use App\Models\StoreUnitType;
 use App\Models\OrderPickAuto;
+use App\Models\OrderPickAutoProduct;
 use Illuminate\Support\Facades\DB;
 
 class OrderDetailController extends Controller
@@ -491,32 +492,87 @@ private function runWeightPackingAlgorithm($orderdetails, $storeunits)
 
 
 
-// public function confirm(Order $order)
-// {
-//     OrderPickAuto::where('order_id', $order->id)->update(['confirmed' => true]);
-//     //dd(OrderPickAuto::where('order_id', $order->id)->get());
-//     return redirect()->route('orders.index')->with('success', 'Kompletacja została zatwierdzona.');
-// }
+public function confirm(Order $order)
+{
+    OrderPickAuto::where('order_id', $order->id)->update(['confirmed' => true]);
+    //dd(OrderPickAuto::where('order_id', $order->id)->get());
+    return redirect()->route('orders.index')->with('success', 'Kompletacja została zatwierdzona.');
+}
 
-// public function indexConfirmed()
-// {
-//     $orders = OrderPickAuto::where('confirmed', true)
-//         ->select('order_id')
-//         ->distinct()
-//         ->with('order')
-//         ->get();
+public function indexConfirmed()
+{
+    $orders = OrderPickAuto::where('confirmed', true)
+    ->select('order_id')
+    ->distinct()
+    ->with('order')
+    ->orderByDesc('order_id')
+    ->get();
 
-//     return view('orderdetail.confirmed.index', compact('orders'));
-// }
 
-// public function showConfirmed(Order $order)
-// {
-//     $picks = OrderPickAuto::where('order_id', $order->id)
-//         ->where('confirmed', true)
-//         ->with('storeunit.storeunittype')
-//         ->get();
+    return view('orderdetail.confirmed.index', compact('orders'));
+}
 
-//     return view('orderdetail.confirmed.show', compact('order', 'picks'));
-// }
+public function showConfirmed(Order $order)
+{
+    $picks = OrderPickAuto::where('order_id', $order->id)
+        ->where('confirmed', true)
+        ->with('storeunit.storeunittype')
+        ->get();
+
+    return view('orderdetail.confirmed.show', compact('order', 'picks'));
+}
+
+public function storeConfirmedPacking(Request $request, Order $order)
+{
+    $choice = $request->input('algorithm_choice');
+
+    if (!in_array($choice, ['volume', 'weight'])) {
+        return back()->with('error', 'Nie wybrano algorytmu.');
+    }
+
+    $dataJson = $choice === 'volume'
+        ? $request->input('volume_algorithm')
+        : $request->input('weight_algorithm');
+
+    $data = json_decode(html_entity_decode($dataJson), true);
+
+    if (!is_array($data)) {
+        return back()->with('error', 'Dane algorytmu są niepoprawne.');
+    }
+//dd($data);
+
+    foreach ($data as $entry) {
+            if (!isset($entry['storeunit_id'])) continue;
+            $storeUnit = StoreUnit::find($entry['storeunit_id']);
+
+            if (!$storeUnit) continue;
+
+            $orderPickAuto = OrderPickAuto::create([
+                'order_id' => $order->id,
+                'store_unit_id' => $storeUnit->id, // uwaga: klucz w bazie to `store_unit_id`
+                'used_volume' => $entry['volume_used'] ?? 0,
+                'used_weight' => $entry['weight_used'] ?? 0,
+                'confirmed' => true,
+                'algorithm_type' => $choice,
+            ]);
+
+
+        if (!empty($entry['products'])) {
+            foreach ($entry['products'] as $p) {
+                $detail = OrderDetail::find($p['detail_id'] ?? null);
+                if ($detail) {
+                    OrderPickAutoProduct::create([
+                        'order_pick_auto_id' => $orderPickAuto->id,
+                        'product_id' => $detail->product_id,
+                        'quantity' => $p['quantity'] ?? 1,
+                    ]);
+                }
+            }
+        }
+    }
+
+    return redirect()->route('orders.index')->with('success', 'Kompletacja została zapisana.');
+}
+
 
 }

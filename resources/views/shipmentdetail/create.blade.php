@@ -12,25 +12,20 @@
                 <div class="row p-2">
                     <div class="col-md-12">
                         <div class="form-group">
-                            <label for="product_id">Wybierz produkt lub komplet</label>
-<select name="product_id" class="select_2 form-control @error('product_id') is-invalid @enderror" id="product_id">
-    <option value="">🟢 Produkt</option>
-    @foreach ($products as $product)
-        <option value="prod_{{ $product->id }}" @selected(old('product_id') == 'prod_'.$product->id)>
-            🧩 {{ $product->ean }} – {{ $product->code }}
-        </option>
-    @endforeach
-</select>
-
-<label class="mt-3" for="product_set_id">Lub wybierz komplet</label>
-<select name="product_set_id" class="select_2 form-control @error('product_set_id') is-invalid @enderror" id="product_set_id">
-    <option value="">🔵 Komplet</option>
-    @foreach ($productSets as $set)
-        <option value="set_{{ $set->id }}" @selected(old('product_set_id') == 'set_'.$set->id)>
-            📦 {{ $set->code }}
-        </option>
-    @endforeach
-</select>
+                            <label for="product_id">Wybierz produkt</label>Add commentMore actions
+                            <select name="product_id" class="select_2 select2-container form-control @error('product_id') is-invalid @enderror"  id="product_id" required>
+                                <option value="">Wybierz</option>
+                                @foreach ($products as $product)
+                                    <option value="{{ $product->id }}" @selected(old('product_id') == $product)>
+                                        {{ $product->ean.' - '.$product->code}}
+                                    </option>
+                                @endForeach
+                                @error('product_id')
+                                    <span class="invalid-feedback" role="alert">
+                                        <strong>{{ $message }}</strong>
+                                    </span>
+                                @enderror
+                            </select>
 
                         </div>
                     </div>

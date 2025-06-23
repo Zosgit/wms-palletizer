@@ -86,4 +86,16 @@
         </div>
     </div>
 </div>
+
+<div class="text-end mt-4">
+    <a href="{{ route('orderdetail.autopick', ['id' => $order->id]) }}" class="btn btn-warning">
+        Powtórz proces
+    </a>
+<p class="text-danger mt-3">
+    <strong>Uwaga:</strong> Kliknięcie przycisku uruchomi <u>nową symulację kompletacji</u>.
+    Dane zatwierdzone wcześniej <strong>nie zostaną nadpisane</strong>.
+</p>
+</div>
+
+
 @endsection

@@ -12,7 +12,7 @@
                 <div class="row p-2">
                     <div class="col-md-12">
                         <div class="form-group">
-                            <label for="product_id">Wybierz produkt</label>Add commentMore actions
+                            <label for="product_id">Wybierz produkt</label>
                             <select name="product_id" class="select_2 select2-container form-control @error('product_id') is-invalid @enderror"  id="product_id" required>
                                 <option value="">Wybierz</option>
                                 @foreach ($products as $product)

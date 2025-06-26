@@ -1,20 +1,38 @@
 @extends('layouts.app')
 
 @section('content')
-<div class="container">
-    <h1 class="mb-4">Zatwierdzone kompletacje</h1>
 
-    @if($orders->isEmpty())
-        <p>Brak zatwierdzonych kompletacji.</p>
-    @else
-        <table class="table table-striped">
-            <thead>
-                <tr>
-                    <th>ID zamówienia</th>
-                    <th>Data zatwierdzenia</th>
-                    <th>Akcja</th>
-                </tr>
-            </thead>
+    <div class="card mb-4">
+        <div class="card-header">
+            Kompletacja zamówień
+        </div>
+        <div class="card-body">
+            <form action="" method="GET">
+                <div class="row">
+                    <div class="col-md-2">
+                        <select name="type" class="form-select">
+                            <option value="">Wybierz pole</option>
+                            <option value="ship_nr">Nr dostawy</option>
+                            <option value="external_nr">Dok zewnętrzny</option>
+                            <option value="location">Miejsce</option>
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <input type="text" name="search" value="" class="form-control" placeholder="Wprowadź dane..."/>
+                    </div>
+                    <div class="col-md-5">
+                        <button type="submit" class="btn btn-dark">Filtruj</button>
+                    </div>
+                </div>
+            </form>
+            <table id="data_table" class="table table-striped table-hover table-sm">
+                <thead>
+                    <tr>
+                        <th>Dokument wydania</th>
+                        <th>Data</th>
+                        <th> </th>
+                    </tr>
+                    </thead>
             <tbody>
                 @foreach($orders as $entry)
                     <tr>
@@ -38,6 +56,7 @@
                 @endforeach
             </tbody>
         </table>
-    @endif
+
+        </div>
 </div>
 @endsection

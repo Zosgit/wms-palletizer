@@ -16,44 +16,23 @@ class ShipmentDetailController extends Controller
     /**
      * Display a listing of the resource.
      */
-public function index($id)
-{
-    $shipment = Shipment::findOrFail($id);
-    $status_id = $shipment->status_id;
-    $ship_id = $shipment->id;
+    public function index($id)
+    {
+        $shipment = Shipment::findorfail($id);
+        $status_id = $shipment->status_id;
+        $ship_id = $shipment->id;
 
-    $products = Product::getShipment();
-    $logicalareas = LogicalArea::orderBy('code')->get();
-    $shipmentdetails = ShipmentDetail::where('ship_id', $ship_id)->with('product.productsets')->get();
+        $products = Product::getShipment();
+        $logicalareas = LogicalArea::orderBy('code')->get();
+        $shipmentdetails = ShipmentDetail::where('ship_id',$ship_id)->paginate(200);
 
-    // Grupowanie: komplet vs pojedynczy produkt
-    $groupedDetails = [];
-
-    foreach ($shipmentdetails as $detail) {
-        $product = $detail->product;
-        $setId = optional($product->productsets->first())->id;
-
-        if ($setId) {
-            if (!isset($groupedDetails[$setId])) {
-                $groupedDetails[$setId] = [
-                    'is_set' => true,
-                    'set_name' => optional($product->productsets->first())->code,
-                    'items' => [],
-                ];
-            }
-            $groupedDetails[$setId]['items'][] = $detail;
-        } else {
-            $groupedDetails[] = $detail; // pojedynczy produkt
+        if ($status_id < 403)
+        {
+            return view('shipmentdetail.index',compact('shipment','products','logicalareas','shipmentdetails'));
         }
+
+        return view('shipmentdetail.show',compact('shipment','products','logicalareas','shipmentdetails'));
     }
-
-    if ($status_id < 403) {
-        return view('shipmentdetail.index', compact('shipment', 'products', 'logicalareas', 'shipmentdetails', 'groupedDetails'));
-    }
-
-    return view('shipmentdetail.show', compact('shipment', 'products', 'logicalareas', 'shipmentdetails', 'groupedDetails'));
-}
-
 
     /**
      * Show the form for creating a new resource.
@@ -70,74 +49,33 @@ public function index($id)
         $products = Product::getShipment();
         $logicalareas = LogicalArea::orderBy('code')->get();
 
-        $productSets = ProductSet::orderBy('code')->get();
-        return view('shipmentdetail.create', compact('shipment', 'products', 'logicalareas', 'productSets'));
+        return view('shipmentdetail.create',compact('shipment','products','logicalareas'));
     }
 
     /**
      * Store a newly created resource in storage.
      */
-public function store(Request $request, Shipment $shipment)
-{
-    // Zakładamy, że frontend zawsze przesyła albo produkt, albo komplet
-    $productInput = $request->input('product_id'); // np. "prod_3"
-    $productSetInput = $request->input('product_set_id'); // np. "set_1"
-
-    $validatedAttributes = $request->validate([
-        'logical_area_id'   => 'required',
-        'quantity'          => 'required|Decimal:2',
-        'serial_nr'         => '',
-        'expiration_at'     => '',
-        'remarks'           => '',
-    ]);
-
-    $logicalAreaId = $validatedAttributes['logical_area_id'];
-    $quantity = $validatedAttributes['quantity'];
-    $serialNr = $validatedAttributes['serial_nr'];
-    $expiration = $validatedAttributes['expiration_at'];
-    $remarks = $validatedAttributes['remarks'];
-
-    $shipmentId = $shipment->id;
-
-    // ✅ 1. Obsługa KOMPLETU
-    if ($productSetInput && str_starts_with($productSetInput, 'set_')) {
-        $setId = str_replace('set_', '', $productSetInput);
-        $productSet = ProductSet::with('products')->findOrFail($setId);
-
-        foreach ($productSet->products as $product) {
-            ShipmentDetail::create([
-                'ship_id' => $shipmentId,
-                'product_id' => $product->id,
-                'prod_code' => $product->code,
-                'prod_desc' => $product->longdesc,
-                'logical_area_id' => $logicalAreaId,
-                'quantity' => $quantity, // lub przeliczenie jeśli komplet zawiera inne proporcje
-                'serial_nr' => $serialNr,
-                'expiration_at' => $expiration,
-                'remarks' => '[komplet: ' . $productSet->code . '] ' . $remarks,
+    public function store(Request $request, Shipment $shipment)
+    {
+    $validatedAttributes = $request->validate ([
+            'product_id'        => 'required',
+            'logical_area_id'   => 'required',
+            'quantity'          => 'required|Decimal:2',
+            'serial_nr'         => '',
+            'expiration_at'     => '',
+            'remarks'           => '',
             ]);
-        }
 
-    // ✅ 2. Obsługa pojedynczego PRODUKTU
-    } elseif ($productInput && str_starts_with($productInput, 'prod_')) {
-        $productId = str_replace('prod_', '', $productInput);
-        $product = Product::findOrFail($productId);
+    $product = Product::findOrFail($validatedAttributes['product_id']);
 
-        ShipmentDetail::create([
-            'ship_id' => $shipmentId,
-            'product_id' => $product->id,
-            'prod_code' => $product->code,
-            'prod_desc' => $product->longdesc,
-            'logical_area_id' => $logicalAreaId,
-            'quantity' => $quantity,
-            'serial_nr' => $serialNr,
-            'expiration_at' => $expiration,
-            'remarks' => $remarks,
-        ]);
+        $validatedAttributes['ship_id'] = $shipment->id;
+        $validatedAttributes['prod_code'] = $product->code;
+        $validatedAttributes['prod_desc'] = $product->longdesc;
+
+        ShipmentDetail::create($validatedAttributes);
+
+        return redirect()->route('shipmentdetail.index', ['id' => $shipment->id]);
     }
-
-    return redirect()->route('shipmentdetail.index', ['id' => $shipment->id]);
-}
 
     public function sendcontrol($id)
     {

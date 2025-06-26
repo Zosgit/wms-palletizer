@@ -34,143 +34,45 @@ class OrderDetailController extends Controller
 
     }
 
-public function create($id, Request $request)
-{
-    $order = Order::findOrFail($id);
-    $owner_id = $order->owner_id;
-
-    // Produkty spoza kompletów (z widoku v_reservation)
-    $query = DB::table('v_reservation')
-                ->where('owner_id', $owner_id)
-                ->where('sum_stock', '>', 0)
-                ->where('status_id', 302);
-
-    if ($request->filled('search')) {
-        $query->where('prod_code', 'like', '%' . $request->search . '%');
-    }
-
-    $stocks = $query->paginate(5000);
-
-    // Produkty należące do kompletów
-    $completeStocks = DB::table('complete_product')
-        ->join('products', 'products.id', '=', 'complete_product.product_id')
-        ->join('product_sets', 'product_sets.id', '=', 'complete_product.product_sets_id')
-        ->join('stocks', function ($join) use ($owner_id) {
-            $join->on('stocks.product_id', '=', 'products.id')
-                 ->where('stocks.owner_id', '=', $owner_id);
-        })
-        ->join('logical_areas', 'stocks.logical_area_id', '=', 'logical_areas.id')
-        ->select(
-            'product_sets.code as set_name',
-            'product_sets.id as set_id',
-            'stocks.product_id',
-            'stocks.logical_area_id',
-            'stocks.prod_code',
-            'products.longdesc',
-            'logical_areas.code as code_la',
-            DB::raw('SUM(stocks.quantity) as sum_stock')
-        )
-        ->groupBy(
-            'product_sets.code',
-            'product_sets.id',
-            'stocks.product_id',
-            'stocks.logical_area_id',
-            'stocks.prod_code',
-            'products.longdesc',
-            'logical_areas.code'
-        )
-        ->when($request->filled('search'), function ($query) use ($request) {
-            $query->where('stocks.prod_code', 'like', '%' . $request->search . '%');
-        })
-        ->get();
-
-    // Grupowanie kompletów
-    $groupedBySet = $completeStocks->groupBy('set_id');
-    $groupedStocks = [];
-
-    foreach ($groupedBySet as $setId => $items) {
-        $groupedStocks[] = [
-            'is_set' => true,
-            'set_id' => $setId,
-            'set_name' => $items->first()->set_name,
-            'items' => $items,
-        ];
-    }
-
-    // Dodajemy produkty spoza kompletów jako osobne wpisy
-    foreach ($stocks as $stock) {
-        $groupedStocks[] = $stock;
-    }
-
-    return view('orderdetail.create', compact('order', 'stocks'))->with('groupedDetails', $groupedStocks);
-
-}
+    public function create($id ,Request $request)
+    {
+        $order = Order::findorfail($id);
+        $owner_id = $order->owner_id;
 
 
-   public function save(Request $request)
-{
-    if ($request->has('set_id')) {
-        $validated = $request->validate([
-            'order_id' => 'required|integer',
-            'set_id'   => 'required|integer',
-            'set_quantity' => 'required|integer|min:1',
-        ]);
-
-        // Pobierz komplet
-        $set_id = $validated['set_id'];
-        $qty = $validated['set_quantity'];
-        $order_id = $validated['order_id'];
-
-        // Pobierz produkty wchodzące w skład kompletu
-        $productsInSet = DB::table('complete_product')
-            ->where('product_sets_id', $set_id)
-            ->get();
-
-        foreach ($productsInSet as $productInSet) {
-            // Pobierz dane produktu i zapasu (np. z widoku v_reservation lub z tabeli stocks)
-            $stock = DB::table('v_reservation')
-                ->where('product_id', $productInSet->product_id)
-                ->where('owner_id', function($q) use ($order_id) {
-                    $q->select('owner_id')->from('orders')->where('id', $order_id)->limit(1);
-                })
-                ->where('sum_stock', '>', 0)
-                ->first();
-
-            if (!$stock) continue;
-
-            // Dopisz każdy produkt jako osobny wpis
-            OrderDetail::create([
-                'order_id'        => $order_id,
-                'quantity'        => $qty * 1, // 1 sztuka danego produktu na komplet — rozbuduj jeśli inne przeliczniki
-                'logical_area_id' => $stock->logical_area_id,
-                'product_id'      => $stock->product_id,
-                'prod_code'       => $stock->prod_code,
-                'prod_desc'       => $stock->longdesc
-            ]);
+        if ($request->search != null)
+        {
+            $stocks = DB::table('v_reservation')->where('prod_code','like','%'.$request->search.'%')
+                                            ->where('owner_id',$owner_id)
+                                            ->where('sum_stock','>',0)
+                                            ->where('status_id',302)->paginate(5000);
+        }
+        else
+        {
+            $stocks = DB::table('v_reservation')->where('owner_id',$owner_id)
+                                                ->where('sum_stock','>',0)
+                                                ->where('status_id',302)->paginate(5000);
         }
 
-        // (Opcjonalnie) zapisz w tabeli np. `shipment_sets` informacje o dodanym komplecie
-        // ShipmentSet::create([ 'order_id' => $order_id, 'product_sets_id' => $set_id, 'quantity' => $qty ]);
+        return view('orderdetail.create',compact('order','stocks'));
 
-        return redirect()->route('orderdetail.create', ['id' => $order_id])
-            ->with('success', 'Komplet dopisany i rozbity na produkty!');
     }
 
-    // Obsługa pojedynczego produktu (jak do tej pory)
-    $validatedAttributes = $request->validate([
-        'order_id'          => 'required',
-        'quantity'          => 'required',
-        'logical_area_id'   => 'required',
-        'product_id'        => 'required',
-        'prod_code'         => 'required',
-        'prod_desc'         => 'required'
-    ]);
+    public function save(Request $request)
+    {
+        $validatedAttributes = $request->validate([
+            'order_id'          => 'required',
+            'quantity'          => 'required',
+            'logical_area_id'   => 'required',
+            'product_id'        => 'required',
+            'prod_code'         => 'required',
+            'prod_desc'         => 'required'
+        ]);
 
-    OrderDetail::create($validatedAttributes);
+        OrderDetail::create($validatedAttributes);
+        return redirect()->route('orderdetail.create',['id'=> $request->order_id])->with('success', 'Produkt dodany poprawnie!');
+ }
 
-    return redirect()->route('orderdetail.create', ['id' => $request->order_id])
-        ->with('success', 'Produkt dodany poprawnie!');
-}
 
     public function distroy($id)
     {
@@ -539,23 +441,24 @@ public function storeConfirmedPacking(Request $request, Order $order)
     if (!is_array($data)) {
         return back()->with('error', 'Dane algorytmu są niepoprawne.');
     }
-//dd($data);
+
+    // 🧹 USUŃ STARE KOMPLETACJE
+    OrderPickAuto::where('order_id', $order->id)->delete();
 
     foreach ($data as $entry) {
-            if (!isset($entry['storeunit_id'])) continue;
-            $storeUnit = StoreUnit::find($entry['storeunit_id']);
+        if (!isset($entry['storeunit_id'])) continue;
 
-            if (!$storeUnit) continue;
+        $storeUnit = StoreUnit::find($entry['storeunit_id']);
+        if (!$storeUnit) continue;
 
-            $orderPickAuto = OrderPickAuto::create([
-                'order_id' => $order->id,
-                'store_unit_id' => $storeUnit->id, // uwaga: klucz w bazie to `store_unit_id`
-                'used_volume' => $entry['volume_used'] ?? 0,
-                'used_weight' => $entry['weight_used'] ?? 0,
-                'confirmed' => true,
-                'algorithm_type' => $choice,
-            ]);
-
+        $orderPickAuto = OrderPickAuto::create([
+            'order_id' => $order->id,
+            'store_unit_id' => $storeUnit->id, // klucz zgodny z DB
+            'used_volume' => $entry['volume_used'] ?? 0,
+            'used_weight' => $entry['weight_used'] ?? 0,
+            'confirmed' => true,
+            'algorithm_type' => $choice,
+        ]);
 
         if (!empty($entry['products'])) {
             foreach ($entry['products'] as $p) {

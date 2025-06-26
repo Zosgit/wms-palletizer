@@ -41,9 +41,14 @@
                     Dokumenty wydania
                 </a>
             </li>
-            <li class="nav-item">
+            {{-- <li class="nav-item">
                 <a class="nav-link" href="{{ route('pick.index') }}" target="_top">
                     Planowanie kompletacji
+                </a>
+            </li> --}}
+            <li class="nav-item">
+                <a class="nav-link" href="{{ route('orderpickauto.index') }}" target="_top">
+                    Zatwierdzone kompletacje
                 </a>
             </li>
         </ul>
@@ -140,15 +145,6 @@
                 </a>
             </li>
         </ul>
-    </li>
-
-    <li class="nav-item">
-        <a class="nav-link" href="{{ route('orderpickauto.index') }}">
-            <svg class="nav-icon">
-                <use xlink:href="{{ asset('icons/coreui.svg#cil-storage') }}"></use>
-            </svg>
-            Zatwierdzone kompletacje
-        </a>
     </li>
 
     <li class="nav-item">

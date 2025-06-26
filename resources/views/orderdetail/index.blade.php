@@ -56,10 +56,10 @@
             <thead>
               <tr>
                 <th>Indeks</th>
-                <th>Magazyn</th>
+                <th>Opis</th>
                 <th>Kategoria</th>
-                <th class="center">ilość</th>
-                <th class="center">Operacje</th>
+                <th class="center">Ilość</th>
+                {{-- <th class="center">Operacje</th> --}}
               </tr>
             </thead>
             <tbody>
@@ -67,14 +67,14 @@
                     <tr>
                         <td>{{ $orderdetail->prod_code }}</td>
                         <td class="center">{{ $orderdetail->prod_desc }}</td>
-                        <td class="center">{{ $orderdetail->logical_area->code }}</td>
+                        {{-- <td class="center">{{ $orderdetail->logical_area->code }}</td> --}}
                         <td class="center">{{ $orderdetail->product->producttype->code }}</td>
                         <td class="right">{{ $orderdetail->quantity }}</td>
                         <td>
                             <form href="{{ route('orderdetail.destroy', $orderdetail->id)}}" method="POST">
                                 @method('delete')
                                 @csrf
-                                <input class="btn btn-success btn-sm" type="submit" value="Wybierz" />
+                                {{-- <input class="btn btn-success btn-sm" type="submit" value="Wybierz" /> --}}
                              </form>
                     </td>
                     </tr>

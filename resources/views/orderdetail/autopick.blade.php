@@ -83,7 +83,7 @@
                                     <td>
                                         {{ $product->material_type ?? 'brak danych' }}
                                         @if(isset($product->material_type) && Str::of($product->material_type)->contains('kruchy'))
-                                            <span class="badge bg-danger-subtle text-danger ms-1">!</span>
+                                           <span class="badge bg-danger-subtle text-danger ms-1" title="Produkt kruchy">!</span>
                                         @endif
                                     </td>
                                     <td>{{ $detail->quantity }}</td>

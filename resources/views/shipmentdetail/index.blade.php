@@ -43,7 +43,7 @@
                 </div>
             </div>
 
-             <a href="{{ route('shipmentdetail.create',['shipment' => $shipment]) }}"Add commentMore actions
+             <a href="{{ route('shipmentdetail.create',['shipment' => $shipment]) }}"
         class="btn btn-primary float-start px-4 btn-sm">Dodaj pozycję</a>
         <div class="table-responsive-sm">
           <table class="table table-striped table-hover table-sm">
